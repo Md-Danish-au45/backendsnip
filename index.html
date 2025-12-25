@@ -1,0 +1,519 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marriage Biodata - Noor Shaikh</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .bismillah {
+            font-family: 'Times New Roman', serif;
+            font-size: 28px;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.95;
+            font-style: italic;
+        }
+
+        .profile-header {
+            text-align: center;
+            padding: 40px 30px 30px;
+            background: linear-gradient(to bottom, #f8f9fa 0%, white 100%);
+            border-bottom: 3px solid #667eea;
+        }
+
+        .profile-photo {
+            width: 180px;
+            height: 220px;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            border: 5px solid white;
+        }
+
+        .profile-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-name {
+            font-size: 32px;
+            color: #667eea;
+            margin-bottom: 25px;
+            font-weight: bold;
+        }
+
+        .personal-details {
+            padding: 0 30px 30px;
+            background: linear-gradient(to bottom, #f8f9fa 0%, white 100%);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .info-item {
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .info-value {
+            font-size: 16px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .section {
+            padding: 35px 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 22px;
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .section-content {
+            line-height: 1.8;
+            color: #444;
+        }
+
+        .family-member {
+            padding: 15px;
+            margin-bottom: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #764ba2;
+        }
+
+        .family-member strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+
+        .family-member span {
+            color: #555;
+            font-size: 14px;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 2px solid #667eea40;
+        }
+
+        .highlight-box p {
+            margin: 8px 0;
+            font-size: 15px;
+        }
+
+        .islamic-culture {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin: 20px auto 0;
+            border: 2px solid #667eea40;
+            max-width: 700px;
+            text-align: center;
+        }
+
+        .islamic-culture strong {
+            color: #667eea;
+            font-size: 16px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .islamic-culture p {
+            font-size: 15px;
+            color: #555;
+        }
+
+        .contact-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .contact-item {
+            margin: 12px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .contact-icon {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .footer {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 25px;
+            font-size: 15px;
+            font-style: italic;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+                max-width: 100%;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .info-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+/* Mobile Dark Bold & Bigger Text Fix */
+@media (max-width: 480px) {
+
+    body {
+        font-size: 20px;
+        color: #111;
+    }
+
+    .profile-name {
+        font-size: 30px;
+        color: #222;
+        font-weight: 800;
+    }
+
+    .info-label {
+        font-size: 15px;
+        font-weight: 800;
+        color: #000;
+    }
+
+    .info-value {
+        font-size: 20px;
+        font-weight: 800;
+        color: #000;
+    }
+
+    .section-title {
+        font-size: 22px;
+        font-weight: 900;
+        color: #222;
+    }
+
+    .section-content,
+    .section-content p {
+        font-size: 19px;
+        font-weight: 700;
+        color: #111;
+    }
+
+    .family-member {
+        padding: 18px;
+    }
+
+    .family-member strong {
+        font-size: 20px;
+        font-weight: 900;
+        color: #000;
+    }
+
+    .family-member span {
+        font-size: 18px;
+        font-weight: 700;
+        color: #222;
+    }
+
+    .highlight-box p {
+        font-size: 19px;
+        font-weight: 800;
+        color: #000;
+    }
+
+    .islamic-culture strong {
+        font-size: 19px;
+        font-weight: 900;
+        color: #000;
+    }
+
+    .islamic-culture p {
+        font-size: 18px;
+        font-weight: 700;
+        color: #222;
+    }
+
+    .contact-item strong {
+        font-size: 19px;
+        font-weight: 900;
+        color: #000;
+    }
+
+    .contact-item div {
+        font-size: 18px;
+        font-weight: 700;
+        color: #222;
+    }
+
+    .footer {
+        font-size: 18px;
+        font-weight: 700;
+        color: #fff;
+    }
+}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
+            <h1>Marriage Biodata</h1>
+            <p>In the name of Allah, the Most Gracious, the Most Merciful</p>
+        </div>
+
+        <div class="profile-header">
+            <h2 class="profile-name">Noor Shaikh</h2>
+        </div>
+
+        <div class="personal-details">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Date of Birth</div>
+                    <div class="info-value">03 July 2003</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Height</div>
+                    <div class="info-value">5'2"</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Weight</div>
+                    <div class="info-value">50 kg</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Complexion</div>
+                    <div class="info-value">Fair</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Religion</div>
+                    <div class="info-value">Islam</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Caste</div>
+                    <div class="info-value">Shaikh</div>
+                </div>
+            </div>
+
+            <div class="islamic-culture">
+                <strong>Islamic Culture & Practice</strong>
+                <p>Well educated in the Holy Quran Sharif & Hadis Sharif</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">📚 Educational Qualifications</h2>
+            <div class="section-content">
+                <div class="highlight-box">
+                    <p><strong>Bachelor of Arts (B.A.)</strong></p>
+                    <p><strong>Diploma in Elementary Education (D.EL.ED)</strong></p>
+                    <p>✓ CTET Qualified - All Levels Cleared</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">💼 Professional Details</h2>
+            <div class="section-content">
+                <div class="highlight-box">
+                    <p><strong style="color: #667eea; font-size: 18px;">Occupation: Teacher</strong></p>
+                    <p>Teaching Experience: 2+ Years</p>
+                    <p>Professionally qualified and passionate about education</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">👨‍👩‍👧‍👦 Family Background</h2>
+            <div class="section-content">
+                <div class="family-member">
+                    <strong>Father: Md Abdul Hannan Azaad</strong>
+                    <span>Businessman in Property Dealing</span>
+                </div>
+
+                <div class="family-member">
+                    <strong>Mother: Mumtaj Begum</strong>
+                    <span>Homemaker</span>
+                </div>
+
+                <div class="family-member">
+                    <strong>Paternal Grandfather</strong>
+                    <span>Late Md Nisharuddin</span>
+                </div>
+
+                <div class="family-member">
+                    <strong>Maternal Grandfather: MD Masood Ahmad</strong>
+                    <span>Retired Railway Inspector</span>
+                </div>
+
+                <h3 style="color: #667eea; margin-top: 25px; margin-bottom: 15px;">Siblings</h3>
+
+                <div class="family-member">
+                    <strong>Elder Brother: CEO & Founder - Bringmark Pvt. Ltd.</strong>
+                    <span>B.Tech in Computer Science</span>
+                </div>
+
+                <div class="family-member">
+                    <strong>Elder Brother</strong>
+                    <span>B.Tech in Computer Science</span>
+                </div>
+
+                <div class="family-member">
+                    <strong>Younger Sister</strong>
+                    <span>Master's in Psychology</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">💭 About Myself</h2>
+            <div class="section-content">
+                <div class="highlight-box">
+                    <p style="font-size: 16px; line-height: 1.8;">
+                        I believe in growing together - emotionally, spiritually, and in everyday life. 
+                        I value mutual respect, understanding, and building a strong foundation based on 
+                        Islamic principles and shared values.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">🤝 What We're Looking For</h2>
+            <div class="section-content">
+                <div class="highlight-box">
+                    <p style="font-size: 16px; line-height: 1.8;">
+                        We are looking for a well-grounded family with strong Islamic values, good character, 
+                        and mutual respect. A family that believes in maintaining cultural traditions while 
+                        embracing progressive thinking and education.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">📞 Contact Information</h2>
+            <div class="section-content">
+                <div class="contact-info">
+                    <div class="contact-item">
+                        <span class="contact-icon">📱</span>
+                        <div>
+                            <strong>Phone Number:</strong><br>
+                            +91 9818566245
+                        </div>
+                    </div>
+
+                    <div class="contact-item">
+                        <span class="contact-icon">🏠</span>
+                        <div>
+                            <strong>Permanent Address:</strong><br>
+                            House Number 82, Qutub Vihar Phase-1<br>
+                            Goyladairy, New Delhi - 110071
+                        </div>
+                    </div>
+
+                    <div class="contact-item">
+                        <span class="contact-icon">🏘️</span>
+                        <div>
+                            <strong>Village Address:</strong><br>
+                            Village + P.O. Sirsi, Via-Meghaul<br>
+                            P.S. Khodawandpur, Dist-Begusarai<br>
+                            State - Bihar, Pin Code - 848202
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            May Allah bless this union with happiness, prosperity, and mutual understanding
+        </div>
+    </div>
+</body>
+</html> -->

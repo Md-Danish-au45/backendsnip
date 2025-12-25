@@ -1,0 +1,115 @@
+{
+  "name": "Blog SEO & Backlink Automation Advanced",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "blogs",
+        "query": "{ \"status\": \"published\" }",
+        "options": {}
+      },
+      "name": "Fetch Published Blogs",
+      "type": "n8n-nodes-base.mongodb",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "return items.map(item => {\n  return {\n    json: {\n      blogId: item.json._id,\n      title: item.json.title,\n      slug: item.json.slug,\n      content: item.json.content,\n      excerpt: item.json.excerpt,\n      author: item.json.author,\n      category: item.json.category,\n      tags: item.json.tags,\n      keywords: item.json.keywords,\n      metaTitle: item.json.metaTitle,\n      metaDescription: item.json.metaDescription,\n      featuredImage: item.json.featuredImage?.url || '',\n      publishedAt: item.json.publishedAt\n    }\n  };\n});"
+      },
+      "name": "Format Blog Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.medium.com/v1/users/{{MEDIUM_USER_ID}}/posts",
+        "method": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"title\": \"{{$json[\"title\"]}}\",\n  \"contentFormat\": \"html\",\n  \"content\": \"{{$json[\"content\"]}}\",\n  \"publishStatus\": \"public\",\n  \"tags\": {{$json[\"tags\"]}} \n}"
+      },
+      "name": "Post to Medium",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [750, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://your-wordpress-site.com/wp-json/wp/v2/posts",
+        "method": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"title\": \"{{$json[\"title\"]}}\",\n  \"content\": \"{{$json[\"content\"]}}\",\n  \"status\": \"publish\",\n  \"excerpt\": \"{{$json[\"excerpt\"]}}\",\n  \"categories\": [\"{{$json[\"category\"]}}\"],\n  \"tags\": {{$json[\"tags\"]}},\n  \"meta\": {\n    \"metaTitle\": \"{{$json[\"metaTitle\"]}}\",\n    \"metaDescription\": \"{{$json[\"metaDescription\"]}}\",\n    \"keywords\": {{$json[\"keywords\"]}}\n  }\n}"
+      },
+      "name": "Post to WordPress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [750, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "syncLogs",
+        "options": {},
+        "fields": {
+          "blogId": "={{$json[\"blogId\"]}}",
+          "platform": "Medium",
+          "status": "success",
+          "timestamp": "={{new Date().toISOString()}}"
+        }
+      },
+      "name": "Log Medium Success",
+      "type": "n8n-nodes-base.mongodb",
+      "typeVersion": 1,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "syncLogs",
+        "options": {},
+        "fields": {
+          "blogId": "={{$json[\"blogId\"]}}",
+          "platform": "WordPress",
+          "status": "success",
+          "timestamp": "={{new Date().toISOString()}}"
+        }
+      },
+      "name": "Log WordPress Success",
+      "type": "n8n-nodes-base.mongodb",
+      "typeVersion": 1,
+      "position": [1000, 400]
+    }
+  ],
+  "connections": {
+    "Fetch Published Blogs": {
+      "main": [
+        [
+          { "node": "Format Blog Data", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Format Blog Data": {
+      "main": [
+        [
+          { "node": "Post to Medium", "type": "main", "index": 0 },
+          { "node": "Post to WordPress", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Post to Medium": {
+      "main": [
+        [
+          { "node": "Log Medium Success", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Post to WordPress": {
+      "main": [
+        [
+          { "node": "Log WordPress Success", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  }
+}
