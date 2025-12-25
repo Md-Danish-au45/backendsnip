@@ -23,8 +23,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // CORS configuration
 const allowedOrigins = [
-  'https://www.vefdoc.com',
-  'https://vefdoc.com',
+  'https://www.snipcol.com',
+  'https://snipcol.com',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',   // 👈 add if needed
