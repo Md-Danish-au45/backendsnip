@@ -1,0 +1,72 @@
+{
+    "success": true,
+    "count": 3,
+    "data": [{
+        "_id": "6878d6f3cc27a24f4fc329d7",
+        "name": "Profile & Address Verification",
+        "service_key": "profile_address_verification",
+        "api_key":""
+        "description": "Retrieves verified address details for a given mobile number.",
+        "price": 0,
+        "is_active": true,
+        "globalUsageCount": 0,
+        "endpoint": "/profile-api/individual/fetch-address",
+        "apiType": "json",
+        "inputFields": [{
+            "name": "phone",
+            "label": "Phone Number",
+            "type": "text",
+            "placeholder": "Enter the mobile number"
+        }, {
+            "name": "full_name",
+            "label": "Full Name",
+            "type": "text",
+            "placeholder": "Enter the full name"
+        }],
+        "outputFields": [],
+        "__v": 0,
+        "createdAt": "2025-07-17T10:56:51.427Z",
+        "updatedAt": "2025-07-17T10:56:51.427Z"
+    }, {
+        "_id": "6878d6f3cc27a24f4fc329d8",
+        "name": "PAN Father's Name Verification",
+        "service_key": "pan_father_name_verification",
+        "description": "Fetches father's name using the individual's PAN.",
+        "price": 0,
+        "is_active": true,
+        "globalUsageCount": 0,
+        "endpoint": "/pan-api/fetch-father-name",
+        "apiType": "json",
+        "inputFields": [{
+            "name": "pan_number",
+            "label": "PAN Number",
+            "type": "text",
+            "placeholder": "Enter the PAN number"
+        }],
+        "outputFields": [],
+        "__v": 0,
+        "createdAt": "2025-07-17T10:56:51.429Z",
+        "updatedAt": "2025-07-17T10:56:51.429Z"
+    }, {
+        "_id": "6879eaeb2a9c32eba70c4c7a",
+        "name": "Fetch CIN by PAN",
+        "service_key": "fetch_cin_by_pan",
+        "description": "Fetches a company's CIN (Company Identification Number) using its PAN.",
+        "imageUrl": "",
+        "price": 29,
+        "is_active": true,
+        "globalUsageCount": 0,
+        "endpoint": "/mca-api/cin-by-pan",
+        "apiType": "json",
+        "inputFields": [{
+            "name": "pan_number",
+            "label": "PAN Number",
+            "type": "text",
+            "placeholder": "Enter company's PAN number"
+        }],
+        "outputFields": [],
+        "__v": 0,
+        "createdAt": "2025-07-18T06:34:19.576Z",
+        "updatedAt": "2025-07-18T06:34:19.576Z"
+    }]
+}

@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "vefdoc",
+  "private_key_id": "9397cd3c240f7a643541c79a4fa628a6cbaf6244",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQDhCyhZ+by4RiH0\nBOpD5nnfOuVLjCMPW2kj/QfnZ+aoNseAuTHck2sJD3Sw997HcEYfVKs71NPVGgw6\nNtm9xQBFqNV+JpmYq/tmLdd0YSUDMHLjXzWmGeM/cs+2Zuh2STBfBHpGt1GKIC19\nUEirS7c4hPFGpuCrqWAHhayGPUDsfkiPPi0y4TiZqDLg6NJ6tQX32z5RDFtO98FQ\nBSYK9Fnvle5Y/8tbHUdWBuERTkPBAET35ojGWaAh/nLzz/mfnt7p9DM7h0rXU32e\ngd4mBkWnVuN0hwgIYHx0LSE9K4nFp6vGJx3IVu8jT8M9LJb1bdcW8Th53xWsM8mM\nqtX6KqGBAgMBAAECggEACfJQ7SIkQNZLtaH6ezgOeqr7G7rUyV7aT66FOQl++MAc\nEwDMdwH2hQLffttjx7ebB9M5ksZKOxTgxblrKA+zHoES95WL7CMs1EQyLckF5mVP\nrKRGhiIGiOVBkD+t5l1/g3GamHHNiy/3Jr7jyVtqPJempN9nFntA3PA/8vp12kX4\n4+rtVn1g5/jf1aBfz7+3XuYGvrb1kbUBdkTf+Ff84+osYi817SBl+Tc/cl7TT3kL\nTq4XNdZKL7S1GUKAaSTTjl22jk5c4dzdpJPQHTU6FKdEw3rKTqA6xfnudHVdYKe3\nQQvGokTQSCso9h7yv2lCzRqTVPKlXywbGDqxApcRYQKBgQD25zctpso2tUzxwUkU\ntC6XkKSX8225ebGTul0j/Q954MB9TXg8CNvDLvfOF1spJQVKt8vZid/UzGgbbAew\nhpvHVhjLsZGEMOTLUfHBWLAnSVRlx56USVt1gOQpPu9io1smCeVYkFFlXlkXmJy8\nESLk33HfinoVc6YQHVXqK4dXUQKBgQDpVcNMtY2yupsaXpB34+LxMYsmOniX2oxT\nJLNaxzpZk4SJo0/IePhikdKp+NT2PLiRvq7AKsn5SqjoXSn2S8w/GVchaKBaM1dl\nqy/zWcMbtyRWFPgdL8bOb6B4QFuyS6m2+OpK7o+8Y86tvTSaxj5EY0ck7BURNKfn\nsZGBc597MQJ/Y1aj3Lo+ocRQMPSTcsEL/e80Se6nNvi/ebCByPkIQQEscT26Im1t\n/hnnmgPLqcI7XtSUL/JJHFUhjebpMRz3kDwTveCzq3wAkc1md2Q3e5cFXe3y37ak\nFaLGKdIofoc7JRLWM8vc8+wB7Hx6kzBR2cQNDOOqOvdM2S70YkMhMQKBgEVHA19J\nIDMKmHZx0S7naD/4V7oX7ioX50XgRagUMszZsaYz6MI6uHR7mzKAAKrDSIFtPfEs\nQx9S/WdQEd9gjdnGKkpvB/z/9VjoRKpZ4kXeUFmGjEwOHVa5acmKQi9jq5X5vYZV\n4jMq5vhKjs3NQjuHxl2+AltDaP6vh+YJcDZhAoGBAIfmuMjcOoiSzW6nOSQwDa1S\n9m7grufFwjY2D+7l+pNUD0azThaDMiLrPMmq6taVnZluTcW7sQTsBHPnM8Bh/5hT\nF1xcAVB5NZm7zE6NKVAAtHpRIpAp6pAMSnR59ekuT0S5nZuW4k2HWXxqJxx8qnz1\nWzFB0XfW6IVRMWaSpV8X\n-----END PRIVATE KEY-----\n",
+  "client_email": "vefdoc@vefdoc.iam.gserviceaccount.com",
+  "client_id": "116495642223640597450",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/vefdoc%40vefdoc.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
