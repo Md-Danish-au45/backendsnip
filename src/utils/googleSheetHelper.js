@@ -9,7 +9,7 @@ const __filename = new URL(import.meta.url).pathname;
 const __dirname = path.dirname(__filename);
 
 // Absolute path to service account key
-const credentialsPath = path.join(__dirname, "..", "..", "snipcol-babdad2bd069.json");
+const credentialsPath = path.join(__dirname, "..", "..", `"snipcol-babdad2bd069.json"`);
 const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf-8"));
 
 // Google Sheets scopes
@@ -62,7 +62,7 @@ export const appendBlogToSheet = async (blog) => {
       blog.category || "General",
       blog.status || "draft",
       blog.publishedAt ? new Date(blog.publishedAt).toLocaleString() : "",
-      `https://verifymykcy.com/blog/${blog.slug}`,
+      `https://snipcol.com/blog/${blog.slug}`,
       blog.excerpt || "",
       blog.content || "",
       blog.readingTime || 5,
