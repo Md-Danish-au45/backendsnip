@@ -9,12 +9,12 @@ const __filename = new URL(import.meta.url).pathname;
 const __dirname = path.dirname(__filename);
 
 // Absolute path to service account key
-const credentialsPath = path.join(__dirname, "..", "..", "vefdoc-9397cd3c240f.json");
+const credentialsPath = path.join(__dirname, "..", "..", "snipcol-babdad2bd069.json");
 const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf-8"));
 
 // Google Sheets scopes
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
-const SHEET_ID = "1U0NgUzRES8Rl4S4b41d964tBNUw00IAPNIAjYAFVsOU"; // Only the ID
+const SHEET_ID = "1yTkrVdUseNnTlXsyIN2TFw6yOApMAIyr5OGSknE9yK0"; // Only the ID
 
 const auth = new google.auth.GoogleAuth({
   credentials,
