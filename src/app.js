@@ -27,14 +27,13 @@ const allowedOrigins = [
   'https://snipcol.com',
   'http://localhost:5173',
   'http://localhost:5174',
-  'http://localhost:3000',   // 👈 add if needed
-  'http://127.0.0.1:5173'    // sometimes vite runs here
+  'http://localhost:3000',
+  'http://127.0.0.1:5173'
 ];
-
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // mobile apps or curl requests
+    if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -45,6 +44,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   credentials: true
 }));
+
+// ✅ ADD THIS — PRE-FLIGHT FIX
+app.options('*', cors());
 
 // External API CORS + rate limiting
 app.use('/api/external', cors({
