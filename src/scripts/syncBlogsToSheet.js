@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import { syncAllBlogsToSheet } from "../utils/googleSheetHelper.js";
 
 dotenv.config();
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_URI = "mongodb+srv://verifyekyc1_db_user:suH91Tum6inY5sHA@cluster0.sepm192.mongodb.net/snipcol";
 
 const runSync = async () => {
   try {
