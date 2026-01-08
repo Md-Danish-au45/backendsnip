@@ -6,7 +6,6 @@ const blogSchema = new mongoose.Schema(
     // Basic Blog Information
     title: {
       type: String,
-      required: [true, 'Please provide a blog title'],
       trim: true,
       unique: true,
     },
@@ -21,7 +20,6 @@ const blogSchema = new mongoose.Schema(
     },
     content: {
       type: String,
-      required: [true, 'Please provide blog content'],
     },
     author: {
       type: String,
@@ -29,28 +27,27 @@ const blogSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      // enum: [
-      //   "PAN",
-      //   "CIN",
-      //   "Financial & Business Checks",
-      //   "Identity Verification",
-      //   "Employment Verification",
-      //   "Biometric & AI-Based Verification",
-      //   "Profile & Database Lookup",
-      //   "Legal & Compliance Checks",
-      //   "Vehicle Verification"
-      // ],
-      // required: [true, 'Please provide a category'],
+      enum: [
+  "Protocol Integration",
+  "Industrial IoT (IIoT)",
+  "Universal Connectivity",
+  "Hardware Interoperability",
+  "Smart Automation",
+  "Legacy Systems",
+  "Communication Standards",
+  "Technical Tutorials",
+  "Case Studies",
+  "Hardware Security",
+  "Edge Computing",
+  "Implementation Guides",
+  "Industry 4.0",
+  "Device Management",
+  "Product Updates"
+]
     },
     keywords: {
       type: [String],
-      required: [true, 'Please provide at least one keyword'],
-      validate: {
-        validator: function(v) {
-          return v && v.length > 0;
-        },
-        message: 'At least one keyword is required'
-      }
+
     },
     tags: [{
       type: String,
