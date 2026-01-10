@@ -47,7 +47,7 @@ app.use(cors({
 }));
 
 // ✅ ADD THIS — PRE-FLIGHT FIX
-app.options('*', cors());
+app.use(cors());
 
 // External API CORS + rate limiting
 app.use('/api/external', cors({
