@@ -9,6 +9,7 @@ import cron from 'node-cron';
 
 import { syncAllBlogsToSheet } from './utils/googleSheetHelper.js';
 import SyncLog from './models/SyncLogModel.js';
+import { startAutoFixService } from './scripts/autoFixBlogs.js';
 
 dotenv.config();
 

@@ -179,6 +179,59 @@ blogSchema.pre('findOneAndUpdate', function (next) {
   next();
 });
 
+// ✅ Middleware 3: For .insertMany() - Handles bulk inserts from n8n
+blogSchema.pre('insertMany', function (next, docs) {
+  if (docs && docs.length) {
+    docs.forEach(doc => {
+      // Generate slug if missing
+      if (!doc.slug && doc.title) {
+        doc.slug = slugify(doc.title, { 
+          lower: true, 
+          strict: true, 
+          remove: /[*+~.()'"!:@]/g 
+        });
+      }
+      
+      // 🔥 Fix null/empty status
+      if (!doc.status || doc.status === null) {
+        doc.status = 'published';
+      }
+      
+      // 🔥 Fix null/empty category
+      if (!doc.category || doc.category === null || doc.category === '') {
+        doc.category = 'General';
+      }
+      
+      // 🔥 Fix null/empty author
+      if (!doc.author || doc.author === null || doc.author === '') {
+        doc.author = 'snipcol Team';
+      }
+      
+      // 🔥 Fix null publishedAt
+      if (!doc.publishedAt || doc.publishedAt === null) {
+        doc.publishedAt = new Date();
+      }
+      
+      // 🔥 Fix null createdAt
+      if (!doc.createdAt || doc.createdAt === null) {
+        doc.createdAt = new Date();
+      }
+      
+      // 🔥 Fix null updatedAt
+      if (!doc.updatedAt || doc.updatedAt === null) {
+        doc.updatedAt = new Date();
+      }
+      
+      // Calculate reading time if content exists
+      if (doc.content && (!doc.readingTime || doc.readingTime === null)) {
+        const wordCount = doc.content.replace(/<[^>]*>/g, '').split(/\s+/).length;
+        doc.readingTime = Math.max(1, Math.ceil(wordCount / 200));
+      }
+    });
+  }
+  next();
+});
+
 // Index for better query performance
 blogSchema.index({ slug: 1 });
 blogSchema.index({ category: 1, status: 1 });

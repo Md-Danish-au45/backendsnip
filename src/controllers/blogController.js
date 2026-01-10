@@ -356,3 +356,81 @@ export const getRelatedBlogs = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+// @desc    Get all unique keywords
+// @route   GET /api/blogs/keywords
+// @access  Public
+export const getAllKeywords = async (req, res) => {
+  try {
+    // Published blogs fetch karo aur keywords field select karo
+    const blogs = await Blog.find({ 
+      $or: [
+        { status: 'published' },
+        { status: { $exists: false } },
+        { status: null }
+      ]
+    }).select('keywords');
+
+    // Sab keywords flatten karke unique karo
+    const allKeywords = [...new Set(
+      blogs
+        .flatMap(blog => blog.keywords || [])
+        .filter(keyword => keyword && keyword.trim() !== '')
+    )];
+
+    res.status(200).json({ success: true, data: allKeywords });
+  } catch (error) {
+    console.error('Error fetching keywords:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// @desc    Get blogs by a specific keyword
+// @route   GET /api/blogs/by-keyword/:keyword
+// @access  Public
+export const getBlogsByKeyword = async (req, res) => {
+  try {
+    const keyword = req.params.keyword;
+
+    const blogs = await Blog.find({
+      $or: [
+        { status: 'published' },
+        { status: { $exists: false } },
+        { status: null }
+      ],
+      keywords: { $in: [keyword] } // match keyword in array
+    })
+    .select('title slug excerpt author category featuredImage publishedAt readingTime tags keywords')
+    .sort({ publishedAt: -1, createdAt: -1 })
+    .lean();
+
+    // Clean up blogs data
+    const cleanedBlogs = blogs.map(blog => {
+      if (blog.featuredImage && typeof blog.featuredImage === 'object' && blog.featuredImage.url) {
+        blog.featuredImage = {
+          public_id: blog.featuredImage.public_id || null,
+          url: blog.featuredImage.url
+        };
+      }
+      if (!blog.readingTime || blog.readingTime === null) {
+        blog.readingTime = 5;
+      }
+      if (!blog.category || blog.category === null || blog.category === '') {
+        blog.category = 'General';
+      }
+      if (!blog.author || blog.author === null || blog.author === '') {
+        blog.author = 'snipcol Team';
+      }
+      return blog;
+    });
+
+    if (!cleanedBlogs.length) {
+      return res.status(404).json({ success: false, message: 'No blogs found for this keyword' });
+    }
+
+    res.status(200).json({ success: true, data: cleanedBlogs });
+  } catch (error) {
+    console.error('Error fetching blogs by keyword:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
