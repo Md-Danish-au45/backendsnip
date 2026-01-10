@@ -1,7 +1,7 @@
 // src/scripts/autoFixBlogs.js
 // ✅ Automatically fixes blogs inserted from n8n with null values
 
-import Blog from '../models/BlogModel.js'; // ← IMPORTANT: .js extension
+import Blog from '../models/BlogModel.js'; // ← .js extension jaruri hai ES modules ke liye
 
 /**
  * Background service to auto-fix blogs with null/missing values
@@ -24,7 +24,7 @@ export const startAutoFixService = () => {
  */
 export const fixNullBlogs = async () => {
   try {
-    // Find all blogs with null or missing fields
+    // Find all blogs with null or missing fields OR malformed featuredImage
     const blogsToFix = await Blog.find({
       $or: [
         { status: null },
@@ -35,7 +35,10 @@ export const fixNullBlogs = async () => {
         { author: '' },
         { publishedAt: null },
         { createdAt: null },
-        { updatedAt: null }
+        { updatedAt: null },
+        // 🔥 Also check for blogs with featuredImage issues
+        { 'featuredImage.public_id': { $exists: false } },
+        { 'featuredImage.public_id': null }
       ]
     });
 
@@ -103,6 +106,20 @@ export const fixNullBlogs = async () => {
       // Fix metaDescription if missing
       if (!blog.metaDescription || blog.metaDescription === null) {
         updates.metaDescription = blog.excerpt || 'Read this insightful article';
+      }
+
+      // 🔥 FIX FEATURED IMAGE - Handle all cases
+      if (blog.featuredImage) {
+        // Case 1: featuredImage exists but URL has extra spaces or is malformed
+        if (blog.featuredImage.url && typeof blog.featuredImage.url === 'string') {
+          const cleanUrl = blog.featuredImage.url.trim();
+          if (cleanUrl !== blog.featuredImage.url || !blog.featuredImage.public_id) {
+            updates.featuredImage = {
+              url: cleanUrl,
+              public_id: blog.featuredImage.public_id || null
+            };
+          }
+        }
       }
 
       // Update the blog
