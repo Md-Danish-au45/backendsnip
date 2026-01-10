@@ -7,7 +7,7 @@ const blogSchema = new mongoose.Schema(
     title: {
       type: String,
       trim: true,
-      unique: true,
+      required: [true, 'Title is required']
     },
     slug: {
       type: String,
@@ -15,39 +15,43 @@ const blogSchema = new mongoose.Schema(
     },
     excerpt: {
       type: String,
-      required: [true, 'Please provide an excerpt'],
+      default: '',
       maxlength: [300, 'Excerpt cannot exceed 300 characters']
     },
     content: {
       type: String,
+      required: [true, 'Content is required']
     },
     author: {
       type: String,
-      default: 'VerifyMyKyc Team',
+      default: 'snipcol Team',
     },
     category: {
       type: String,
       enum: [
-  "Protocol Integration",
-  "Industrial IoT (IIoT)",
-  "Universal Connectivity",
-  "Hardware Interoperability",
-  "Smart Automation",
-  "Legacy Systems",
-  "Communication Standards",
-  "Technical Tutorials",
-  "Case Studies",
-  "Hardware Security",
-  "Edge Computing",
-  "Implementation Guides",
-  "Industry 4.0",
-  "Device Management",
-  "Product Updates"
-]
+        "Protocol Integration",
+        "Industrial IoT (IIoT)",
+        "Universal Connectivity",
+        "Hardware Interoperability",
+        "Smart Automation",
+        "Legacy Systems",
+        "Communication Standards",
+        "Technical Tutorials",
+        "Case Studies",
+        "Hardware Security",
+        "Edge Computing",
+        "Implementation Guides",
+        "Industry 4.0",
+        "Device Management",
+        "Product Updates",
+        "General", // Added default category
+        "" // Allow empty string for backward compatibility
+      ],
+      default: 'General'
     },
     keywords: {
       type: [String],
-
+      default: []
     },
     tags: [{
       type: String,
@@ -68,18 +72,18 @@ const blogSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ['draft', 'published', 'archived'],
-      default: 'draft'
+      default: 'published' // Changed from 'draft' to 'published'
     },
     publishedAt: {
       type: Date,
-      default: null
+      default: Date.now // Auto-set to current date
     },
     lastSyncedAt: {
       type: Date,
       default: null
     },
     readingTime: {
-      type: Number, // in minutes
+      type: Number,
       default: 5
     }
   },
@@ -90,6 +94,7 @@ const blogSchema = new mongoose.Schema(
 
 // ✅ Middleware 1: For .save() and .create()
 blogSchema.pre('save', function (next) {
+  // Generate slug from title
   if (this.isModified('title') || this.isNew) {
     this.slug = slugify(this.title, { 
       lower: true, 
@@ -98,14 +103,29 @@ blogSchema.pre('save', function (next) {
     });
   }
   
+  // 🔥 Handle null/empty category
+  if (!this.category || this.category === null || this.category === '') {
+    this.category = 'General';
+  }
+  
+  // 🔥 Handle null/empty author
+  if (!this.author || this.author === null || this.author === '') {
+    this.author = 'snipcol Team';
+  }
+  
   // Set publishedAt when status changes to published
   if (this.isModified('status') && this.status === 'published' && !this.publishedAt) {
     this.publishedAt = new Date();
   }
   
-  // Calculate reading time based on content length (average 200 words per minute)
-  if (this.isModified('content')) {
-    const wordCount = this.content.split(/\s+/).length;
+  // 🔥 If publishedAt is null and status is published, set it
+  if (this.status === 'published' && !this.publishedAt) {
+    this.publishedAt = new Date();
+  }
+  
+  // Calculate reading time based on content length
+  if (this.isModified('content') && this.content) {
+    const wordCount = this.content.replace(/<[^>]*>/g, '').split(/\s+/).length;
     this.readingTime = Math.max(1, Math.ceil(wordCount / 200));
   }
   
@@ -116,8 +136,7 @@ blogSchema.pre('save', function (next) {
 blogSchema.pre('findOneAndUpdate', function (next) {
   const update = this.getUpdate();
   
-  
-  // Check if title is being updated (check in both root and $set)
+  // Check if title is being updated
   const titleInRoot = update.title;
   const titleIn$set = update.$set?.title;
   
@@ -129,21 +148,32 @@ blogSchema.pre('findOneAndUpdate', function (next) {
       remove: /[*+~.()'"!:@]/g 
     });
     
-    
-    // IMPORTANT: Directly modify the update object
-    // If title is in root, set slug in root
+    // Set slug in the appropriate location
     if (titleInRoot) {
       update.slug = newSlug;
     }
     
-    // If title is in $set, set slug in $set
     if (titleIn$set) {
       if (!update.$set) {
         update.$set = {};
       }
       update.$set.slug = newSlug;
     }
-    
+  }
+  
+  // 🔥 Handle category updates
+  if (update.$set?.category === null || update.$set?.category === '') {
+    update.$set.category = 'General';
+  }
+  
+  // 🔥 Handle author updates
+  if (update.$set?.author === null || update.$set?.author === '') {
+    update.$set.author = 'snipcol Team';
+  }
+  
+  // 🔥 Handle publishedAt for status changes
+  if (update.$set?.status === 'published' && !update.$set.publishedAt) {
+    update.$set.publishedAt = new Date();
   }
   
   next();
@@ -153,6 +183,7 @@ blogSchema.pre('findOneAndUpdate', function (next) {
 blogSchema.index({ slug: 1 });
 blogSchema.index({ category: 1, status: 1 });
 blogSchema.index({ publishedAt: -1 });
+blogSchema.index({ createdAt: -1 });
 
 const Blog = mongoose.model('Blog', blogSchema);
 export default Blog;
