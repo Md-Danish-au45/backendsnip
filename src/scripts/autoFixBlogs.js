@@ -36,7 +36,12 @@ export const fixNullBlogs = async () => {
         { publishedAt: null },
         { createdAt: null },
         { updatedAt: null },
-        // 🔥 Also check for blogs with featuredImage issues
+        // 🔥 Check for missing or incomplete featuredImage
+        { featuredImage: { $exists: false } },
+        { featuredImage: null },
+        { 'featuredImage.url': { $exists: false } },
+        { 'featuredImage.url': null },
+        { 'featuredImage.url': '' },
         { 'featuredImage.public_id': { $exists: false } },
         { 'featuredImage.public_id': null }
       ]
@@ -109,16 +114,21 @@ export const fixNullBlogs = async () => {
       }
 
       // 🔥 FIX FEATURED IMAGE - Handle all cases
-      if (blog.featuredImage) {
-        // Case 1: featuredImage exists but URL has extra spaces or is malformed
-        if (blog.featuredImage.url && typeof blog.featuredImage.url === 'string') {
-          const cleanUrl = blog.featuredImage.url.trim();
-          if (cleanUrl !== blog.featuredImage.url || !blog.featuredImage.public_id) {
-            updates.featuredImage = {
-              url: cleanUrl,
-              public_id: blog.featuredImage.public_id || null
-            };
-          }
+      if (!blog.featuredImage || !blog.featuredImage.url) {
+        // Case 1: featuredImage is completely missing or empty
+        // Set a default placeholder or leave empty
+        updates.featuredImage = {
+          url: '', // Empty URL - frontend will show placeholder
+          public_id: null
+        };
+      } else if (blog.featuredImage.url && typeof blog.featuredImage.url === 'string') {
+        // Case 2: featuredImage exists but URL has extra spaces or missing public_id
+        const cleanUrl = blog.featuredImage.url.trim();
+        if (cleanUrl !== blog.featuredImage.url || !blog.featuredImage.public_id) {
+          updates.featuredImage = {
+            url: cleanUrl,
+            public_id: blog.featuredImage.public_id || null
+          };
         }
       }
 
