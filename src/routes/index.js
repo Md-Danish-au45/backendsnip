@@ -16,6 +16,8 @@ import analyticsRoutes from '../routes/analyticsRoutes.js';
 import nodemailer from 'nodemailer';
 import contact from '../routes/contactRoutes.js';
 import faqs from '../routes/faq.routes.js';
+import fireAlarmRoutes from '../routes/fireAlarmRoute.js';
+
 const router = express.Router();
 
 router.use('/auth', authRoutes);
@@ -114,5 +116,6 @@ router.use('/blogs', blogRoutes);
 router.use('/external', externalApiRoutes);
 router.use('/users/analytics', analyticsRoutes);
 router.use('/contact', contact);
+router.use('/alarms', fireAlarmRoutes);
 
 export default router;
