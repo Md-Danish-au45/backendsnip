@@ -3,6 +3,9 @@ import FireAlarm from "../models/FireAlarm.js";
 const COOLDOWN_MINUTES = 5;
 
 // POST /firealm
+const ARM_DELAY_MINUTES = 5;
+
+// 🔥 DEVICE → SERVER
 export const handleFireAlarm = async (req, res) => {
   try {
     const { devid, smoke, fire, time } = req.body;
@@ -15,58 +18,85 @@ export const handleFireAlarm = async (req, res) => {
     }
 
     const eventTime = new Date(time);
-    const isAlarmTriggered = smoke || fire;
+    const danger = smoke || fire;
 
-    // 1️⃣ Fetch latest alarm
-    const lastAlarm = await FireAlarm.findOne({ devId: devid })
-      .sort({ createdAt: -1 })
-      .lean();
+    // fetch latest state of device
+    let alarm = await FireAlarm.findOne({ devId: devid })
+      .sort({ createdAt: -1 });
 
-    let allowInsert = false;
+    // ─────────────────────────────────────────
+    // FIRST RECORD
+    // ─────────────────────────────────────────
+    if (!alarm) {
+      const state = danger ? "ALARM" : "SAFE";
 
-    if (!lastAlarm) {
-      allowInsert = true;
-    } else {
-      const ageMinutes =
-        (Date.now() - new Date(lastAlarm.eventTime).getTime()) / 60000;
-
-      allowInsert =
-        lastAlarm.ack === true && ageMinutes >= COOLDOWN_MINUTES;
-    }
-
-    // 2️⃣ INSERT or UPDATE
-    if (allowInsert && isAlarmTriggered) {
-      // ✅ Insert new alarm
-      const newAlarm = await FireAlarm.create({
+      const first = await FireAlarm.create({
         devId: devid,
         smoke,
         fire,
-        ack: false,
+        state,
+        ack: !danger,
         eventTime,
+        armedAt: !danger ? new Date() : null,
       });
 
       return res.json({
         success: true,
-        ack: false,
-        ackUser: "",
-        dateTime: "",
-        alarmId: newAlarm._id,
-      });
-    } else {
-      // Cooldown active → NO new alarm
-      if (lastAlarm) {
-        await FireAlarm.updateOne(
-          { _id: lastAlarm._id },
-          { $set: { smoke, fire } }
-        );
-      }
-
-      return res.json({
-        success: true,
-        message: "Cooldown active, alarm not re-created",
-        ack: lastAlarm?.ack ?? false,
+        state: first.state,
+        ack: first.ack,
       });
     }
+
+    // ─────────────────────────────────────────
+    // EXISTING DEVICE LOGIC
+    // ─────────────────────────────────────────
+    const now = Date.now();
+    let newState = alarm.state;
+    let ack = alarm.ack;
+
+    // ========== STATE: SAFE ==========
+    if (alarm.state === "SAFE") {
+      const safeMinutes =
+        (now - new Date(alarm.armedAt || alarm.updatedAt).getTime()) / 60000;
+
+      // after 5 min → ARMED
+      if (safeMinutes >= ARM_DELAY_MINUTES) {
+        newState = "ARMED";
+      }
+    }
+
+    // ========== STATE: ARMED ==========
+    if (newState === "ARMED") {
+      if (danger) {
+        // 🚨 C++ RULE
+        newState = "ALARM";
+        ack = false;
+      }
+    }
+
+    // ========== STATE: ALARM ==========
+    if (newState === "ALARM") {
+      ack = false;
+    }
+
+    // update record
+    alarm.smoke = smoke;
+    alarm.fire = fire;
+    alarm.state = newState;
+    alarm.ack = ack;
+    alarm.eventTime = eventTime;
+
+    if (newState === "SAFE" && !alarm.armedAt) {
+      alarm.armedAt = new Date();
+    }
+
+    await alarm.save();
+
+    return res.json({
+      success: true,
+      state: alarm.state,
+      ack: alarm.ack,
+    });
   } catch (err) {
     console.error("Fire alarm error:", err);
     res.status(500).json({
@@ -77,12 +107,11 @@ export const handleFireAlarm = async (req, res) => {
 };
 
 
-
 // PATCH /alarms/:id/ack
 export const acknowledgeAlarm = async (req, res) => {
   try {
     const { id } = req.params;
-    const { message, user } = req.body;
+    const { user } = req.body;
 
     const alarm = await FireAlarm.findById(id);
     if (!alarm) {
@@ -92,29 +121,28 @@ export const acknowledgeAlarm = async (req, res) => {
       });
     }
 
-    if (alarm.ack) {
+    // ACK only allowed in ALARM state
+    if (alarm.state !== "ALARM") {
       return res.status(400).json({
         success: false,
-        message: "Alarm already acknowledged",
+        message: "Alarm not active",
       });
     }
 
+    alarm.state = "SAFE";
     alarm.ack = true;
     alarm.acknowledgedAt = new Date();
-    alarm.acknowledgementMessage = message || "";
     alarm.acknowledgedBy = user || "system";
+    alarm.armedAt = new Date(); // restart timer
 
     await alarm.save();
 
     res.json({
       success: true,
-      message: "Alarm acknowledged successfully",
+      message: "Alarm acknowledged, system SAFE",
       data: {
-        id: alarm._id,
+        state: alarm.state,
         ack: alarm.ack,
-        acknowledgedAt: alarm.acknowledgedAt,
-        acknowledgementMessage: alarm.acknowledgementMessage,
-        acknowledgedBy: alarm.acknowledgedBy,
       },
     });
   } catch (err) {

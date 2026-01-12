@@ -1,23 +1,30 @@
+// models/FireAlarm.js
 import mongoose from "mongoose";
 
-const fireAlarmSchema = new mongoose.Schema(
+const FireAlarmSchema = new mongoose.Schema(
   {
     devId: { type: String, required: true, index: true },
 
     smoke: { type: Boolean, default: false },
     fire: { type: Boolean, default: false },
 
-    // 🔔 Alarm state
-    ack: { type: Boolean, default: false },
+    // system state
+    state: {
+      type: String,
+      enum: ["SAFE", "ARMED", "ALARM"],
+      default: "SAFE",
+    },
 
-    // ✅ NEW FIELDS
-    acknowledgedAt: { type: Date, default: null },     // time of ack
-    acknowledgementMessage: { type: String, default: "" }, // user message
-    acknowledgedBy: { type: String, default: "" },     // user/admin name or id
+    ack: { type: Boolean, default: true },
 
     eventTime: { type: Date, required: true },
+
+    armedAt: { type: Date }, // when system entered ARMED
+
+    acknowledgedAt: { type: Date },
+    acknowledgedBy: { type: String },
   },
   { timestamps: true }
 );
 
-export default mongoose.model("FireAlarm", fireAlarmSchema);
+export default mongoose.model("FireAlarm", FireAlarmSchema);

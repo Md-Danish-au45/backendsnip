@@ -3,7 +3,7 @@ import time
 import random
 from datetime import datetime
 
-URL = "http://localhost:3300/api/alarms/firealm"
+URL = "https://api.snipcol.com/api/alarms/firealm"
 
 # Change device IDs as needed
 DEVICES = [
