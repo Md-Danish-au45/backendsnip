@@ -20,21 +20,21 @@ export const handleFireAlarm = async (req, res) => {
     const eventTime = new Date(time);
     const danger = smoke || fire;
 
-    // fetch latest state of device
-    let alarm = await FireAlarm.findOne({ devId: devid })
+    // latest alarm (for state only)
+    const lastAlarm = await FireAlarm.findOne({ devId: devid })
       .sort({ createdAt: -1 });
 
-    // ─────────────────────────────────────────
-    // FIRST RECORD
-    // ─────────────────────────────────────────
-    if (!alarm) {
-      const state = danger ? "ALARM" : "SAFE";
+    const now = Date.now();
 
+    // ─────────────────────────────────────
+    // 1️⃣ FIRST ALARM EVER
+    // ─────────────────────────────────────
+    if (!lastAlarm) {
       const first = await FireAlarm.create({
         devId: devid,
         smoke,
         fire,
-        state,
+        state: danger ? "ALARM" : "SAFE",
         ack: !danger,
         eventTime,
         armedAt: !danger ? new Date() : null,
@@ -42,60 +42,65 @@ export const handleFireAlarm = async (req, res) => {
 
       return res.json({
         success: true,
+        newAlarm: true,
+        alarmId: first._id,
         state: first.state,
         ack: first.ack,
       });
     }
 
-    // ─────────────────────────────────────────
-    // EXISTING DEVICE LOGIC
-    // ─────────────────────────────────────────
-    const now = Date.now();
-    let newState = alarm.state;
-    let ack = alarm.ack;
+    let systemState = lastAlarm.state;
 
-    // ========== STATE: SAFE ==========
-    if (alarm.state === "SAFE") {
+    // ─────────────────────────────────────
+    // 2️⃣ SAFE → ARMED after 5 min
+    // ─────────────────────────────────────
+    if (systemState === "SAFE") {
       const safeMinutes =
-        (now - new Date(alarm.armedAt || alarm.updatedAt).getTime()) / 60000;
+        (now - new Date(lastAlarm.armedAt || lastAlarm.updatedAt).getTime()) / 60000;
 
-      // after 5 min → ARMED
       if (safeMinutes >= ARM_DELAY_MINUTES) {
-        newState = "ARMED";
+        systemState = "ARMED";
       }
     }
 
-    // ========== STATE: ARMED ==========
-    if (newState === "ARMED") {
-      if (danger) {
-        // 🚨 C++ RULE
-        newState = "ALARM";
-        ack = false;
-      }
+    // ─────────────────────────────────────
+    // 3️⃣ ARMED + danger → CREATE NEW ALARM
+    // ─────────────────────────────────────
+    if (systemState === "ARMED" && danger) {
+      const newAlarm = await FireAlarm.create({
+        devId: devid,
+        smoke,
+        fire,
+        state: "ALARM",
+        ack: false,
+        eventTime,
+      });
+
+      return res.json({
+        success: true,
+        newAlarm: true,
+        alarmId: newAlarm._id,
+        state: "ALARM",
+        ack: false,
+      });
     }
 
-    // ========== STATE: ALARM ==========
-    if (newState === "ALARM") {
-      ack = false;
-    }
+    // ─────────────────────────────────────
+    // 4️⃣ OTHERWISE → update last record only
+    // ─────────────────────────────────────
+    lastAlarm.smoke = smoke;
+    lastAlarm.fire = fire;
+    lastAlarm.eventTime = eventTime;
 
-    // update record
-    alarm.smoke = smoke;
-    alarm.fire = fire;
-    alarm.state = newState;
-    alarm.ack = ack;
-    alarm.eventTime = eventTime;
-
-    if (newState === "SAFE" && !alarm.armedAt) {
-      alarm.armedAt = new Date();
-    }
-
-    await alarm.save();
+    // keep state & ack
+    await lastAlarm.save();
 
     return res.json({
       success: true,
-      state: alarm.state,
-      ack: alarm.ack,
+      newAlarm: false,
+      alarmId: lastAlarm._id,
+      state: lastAlarm.state,
+      ack: lastAlarm.ack,
     });
   } catch (err) {
     console.error("Fire alarm error:", err);
@@ -121,7 +126,6 @@ export const acknowledgeAlarm = async (req, res) => {
       });
     }
 
-    // ACK only allowed in ALARM state
     if (alarm.state !== "ALARM") {
       return res.status(400).json({
         success: false,
@@ -153,6 +157,7 @@ export const acknowledgeAlarm = async (req, res) => {
     });
   }
 };
+
 
 
 /**

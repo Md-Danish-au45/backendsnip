@@ -5,10 +5,9 @@ const FireAlarmSchema = new mongoose.Schema(
   {
     devId: { type: String, required: true, index: true },
 
-    smoke: { type: Boolean, default: false },
-    fire: { type: Boolean, default: false },
+    smoke: Boolean,
+    fire: Boolean,
 
-    // system state
     state: {
       type: String,
       enum: ["SAFE", "ARMED", "ALARM"],
@@ -19,10 +18,10 @@ const FireAlarmSchema = new mongoose.Schema(
 
     eventTime: { type: Date, required: true },
 
-    armedAt: { type: Date }, // when system entered ARMED
+    armedAt: { type: Date },
 
-    acknowledgedAt: { type: Date },
-    acknowledgedBy: { type: String },
+    acknowledgedAt: Date,
+    acknowledgedBy: String,
   },
   { timestamps: true }
 );
