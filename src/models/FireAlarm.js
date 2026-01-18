@@ -5,25 +5,24 @@ const FireAlarmSchema = new mongoose.Schema(
   {
     devId: { type: String, required: true, index: true },
 
-    smoke: Boolean,
-    fire: Boolean,
+    // spec: button pressed
+    button: { type: Boolean, default: false },
 
-    state: {
-      type: String,
-      enum: ["SAFE", "ARMED", "ALARM"],
-      default: "SAFE",
-    },
+    // ack fields (spec response)
+    ack: { type: Boolean, default: false, index: true },
+    ackUser: { type: String, default: "" },
+    ackAt: { type: Date, default: null },
 
-    ack: { type: Boolean, default: true },
-
+    // device event time
     eventTime: { type: Date, required: true },
 
-    armedAt: { type: Date },
-
-    acknowledgedAt: Date,
-    acknowledgedBy: String,
+    // optional: store extra info later (smoke/fire etc)
+    meta: { type: Object, default: {} },
   },
   { timestamps: true }
 );
+
+// helpful index: latest active alarm per device quickly
+FireAlarmSchema.index({ devId: 1, ack: 1, createdAt: -1 });
 
 export default mongoose.model("FireAlarm", FireAlarmSchema);
