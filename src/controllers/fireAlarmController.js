@@ -1,6 +1,6 @@
 import FireAlarm from "../models/FireAlarm.js";
 
-const COOLDOWN_MINUTES = 5;
+const COOLDOWN_MINUTES = 1;
 
 // POST /firealm
 const ARM_DELAY_MINUTES = 5;
@@ -10,41 +10,58 @@ export const handleFireAlarm = async (req, res) => {
   try {
     const { devid, button, time } = req.body;
 
-    // validation (spec)
     if (!devid || typeof devid !== "string" || typeof button !== "boolean" || !time) {
       return res.status(400).json({
         success: false,
-        message: "Invalid payload. Required: devid(string), button(boolean), time(ISO-8601)",
+        message: "Invalid payload",
       });
     }
 
     const eventTime = new Date(time);
-    if (Number.isNaN(eventTime.getTime())) {
+    if (isNaN(eventTime.getTime())) {
       return res.status(400).json({
         success: false,
-        message: "Invalid time format. Must be ISO-8601.",
+        message: "Invalid time format",
       });
     }
 
-    // find latest active alarm for this device (room)
-    const activeAlarm = await FireAlarm.findOne({ devId: devid, ack: false })
+    // 🔍 last alarm for this device (ack or not)
+    const lastAlarm = await FireAlarm.findOne({ devId: devid })
       .sort({ createdAt: -1 });
 
-    // If active exists -> just update it (no duplicate alarms spam)
-    if (activeAlarm) {
-      activeAlarm.button = button;
-      activeAlarm.eventTime = eventTime;
-      await activeAlarm.save();
+    const now = Date.now();
+
+    // 🟡 CASE 1: Active alarm already exists (ack=false)
+    if (lastAlarm && lastAlarm.ack === false) {
+      lastAlarm.button = button;
+      lastAlarm.eventTime = eventTime;
+      await lastAlarm.save();
 
       return res.json({
         success: true,
-        ack: activeAlarm.ack,          // false
-        ackUser: activeAlarm.ackUser,  // ""
-        dateTime: activeAlarm.eventTime?.toISOString?.() || "",
+        ack: false,
+        ackUser: "",
+        dateTime: eventTime.toISOString(),
       });
     }
 
-    // else create new alarm
+    // 🟠 CASE 2: Alarm was acknowledged → cooldown check
+    if (lastAlarm && lastAlarm.ack === true && lastAlarm.ackAt) {
+      const diffMinutes =
+        (now - new Date(lastAlarm.ackAt).getTime()) / 60000;
+
+      if (diffMinutes < COOLDOWN_MINUTES) {
+        // ⛔ within 1 minute → do not create new alarm
+        return res.json({
+          success: true,
+          ack: true,
+          ackUser: lastAlarm.ackUser || "",
+          dateTime: lastAlarm.ackAt.toISOString(),
+        });
+      }
+    }
+
+    // 🔥 CASE 3: Cooldown passed OR first alarm → create new alarm
     const alarm = await FireAlarm.create({
       devId: devid,
       button,
@@ -56,18 +73,20 @@ export const handleFireAlarm = async (req, res) => {
 
     return res.json({
       success: true,
-      ack: alarm.ack,                 // false
-      ackUser: alarm.ackUser,         // ""
-      dateTime: alarm.eventTime?.toISOString?.() || "",
+      ack: false,
+      ackUser: "",
+      dateTime: eventTime.toISOString(),
     });
+
   } catch (err) {
     console.error("Fire alarm error:", err);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Internal server error",
     });
   }
 };
+
 
 // PATCH /alarms/:id/ack
 // PATCH /api/alarms/:id/ack
