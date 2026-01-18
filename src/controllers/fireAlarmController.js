@@ -67,9 +67,9 @@ export const handleFireAlarm = async (req, res) => {
     // Create NEW alarm every 1 minute (repeat) while still danger
     // ─────────────────────────────────────
     if (lastAlarm.state === "ALARM" && danger) {
-      const diffMinutes =
-        (eventTime.getTime() - new Date(lastAlarm.eventTime || lastAlarm.updatedAt).getTime()) /
-        60000;
+    const diffMinutes =
+  (Date.now() - new Date(lastAlarm.createdAt).getTime()) / 60000;
+
 
       // if 1 minute passed since last alarm event -> create NEW ALARM entry
       if (diffMinutes >= REPEAT_ALARM_MINUTES) {
