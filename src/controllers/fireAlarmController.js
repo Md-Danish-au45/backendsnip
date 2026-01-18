@@ -5,46 +5,53 @@ const COOLDOWN_MINUTES = 1;
 // POST /firealm
 
 
-const ARM_DELAY_MINUTES = 1;          // SAFE -> ARMED delay (after ack)
-const REPEAT_ALARM_MINUTES = 1;       // ✅ NEW: if ALARM already active, create NEW alarm after 1 min
+const ARM_DELAY_MINUTES = 1;
+
 
 export const handleFireAlarm = async (req, res) => {
   try {
     const { devid, button, smoke, fire, time, roomNo } = req.body;
 
-    // ✅ Accept button-based payload (minimum required)
-    if (!devid || typeof devid !== "string" || typeof button !== "boolean" || !time) {
+    // ✅ BASIC validation (device ko kabhi 400 na mile except truly invalid)
+    if (!devid || !time) {
       return res.status(400).json({
         success: false,
-        message: "Invalid payload. Required: devid(string), button(boolean), time(ISO)",
+        message: "Invalid payload. Required: devid and time",
       });
     }
 
-    const eventTime = new Date(time);
+    // ✅ Normalize time (supports "YYYY-MM-DD HH:mm:ss")
+    const eventTime = new Date(String(time).replace(" ", "T"));
     if (Number.isNaN(eventTime.getTime())) {
       return res.status(400).json({
         success: false,
-        message: "Invalid time format. Must be ISO-8601.",
+        message: "Invalid time format",
       });
     }
 
-    // ✅ danger logic (button OR smoke OR fire)
-    const smokeBool = typeof smoke === "boolean" ? smoke : false;
-    const fireBool = typeof fire === "boolean" ? fire : false;
-    const danger = button === true || smokeBool === true || fireBool === true;
+    // ✅ Normalize booleans
+    const buttonBool = button === true;
+    const smokeBool = smoke === true;
+    const fireBool = fire === true;
 
-    // latest alarm (for state only)
-    const lastAlarm = await FireAlarm.findOne({ devId: devid }).sort({ createdAt: -1 });
+    // 🔥 DANGER logic (button = fire = smoke)
+    const danger = buttonBool || smokeBool || fireBool;
+
+    // 🔍 Fetch last alarm for this device
+    const lastAlarm = await FireAlarm.findOne({ devId: devid }).sort({
+      createdAt: -1,
+    });
+
     const now = Date.now();
 
     // ─────────────────────────────────────
-    // 1️⃣ FIRST ALARM EVER
+    // 1️⃣ FIRST EVENT EVER
     // ─────────────────────────────────────
     if (!lastAlarm) {
       const first = await FireAlarm.create({
         devId: devid,
         roomNo: roomNo || "",
-        button,
+        button: buttonBool,
         smoke: smokeBool,
         fire: fireBool,
         state: danger ? "ALARM" : "SAFE",
@@ -57,44 +64,17 @@ export const handleFireAlarm = async (req, res) => {
       return res.json({
         success: true,
         ack: first.ack,
-        ackUser: first.ackUser || "",
-        dateTime: first.eventTime?.toISOString?.() || "",
+        ackUser: "",
+        dateTime: first.eventTime.toISOString(),
       });
     }
 
     // ─────────────────────────────────────
-    // ✅ 2️⃣ IF ALARM ACTIVE + danger CONTINUES
-    // Create NEW alarm every 1 minute (repeat) while still danger
+    // 2️⃣ ALARM ACTIVE → NEVER CREATE NEW
+    // (exactly like old fire/smoke behavior)
     // ─────────────────────────────────────
-    if (lastAlarm.state === "ALARM" && danger) {
-    const diffMinutes =
-  (Date.now() - new Date(lastAlarm.createdAt).getTime()) / 60000;
-
-
-      // if 1 minute passed since last alarm event -> create NEW ALARM entry
-      if (diffMinutes >= REPEAT_ALARM_MINUTES) {
-        const repeatAlarm = await FireAlarm.create({
-          devId: devid,
-          roomNo: roomNo || lastAlarm.roomNo || "",
-          button,
-          smoke: smokeBool,
-          fire: fireBool,
-          state: "ALARM",
-          ack: false,
-          ackUser: "",
-          eventTime,
-        });
-
-        return res.json({
-          success: true,
-          ack: false,
-          ackUser: "",
-          dateTime: repeatAlarm.eventTime.toISOString(),
-        });
-      }
-
-      // within 1 minute -> just update last ALARM record
-      lastAlarm.button = button;
+    if (lastAlarm.state === "ALARM") {
+      lastAlarm.button = buttonBool;
       lastAlarm.smoke = smokeBool;
       lastAlarm.fire = fireBool;
       lastAlarm.eventTime = eventTime;
@@ -110,32 +90,31 @@ export const handleFireAlarm = async (req, res) => {
       });
     }
 
+    // ─────────────────────────────────────
+    // 3️⃣ SAFE → ARMED after 1 minute (post-ACK)
+    // ─────────────────────────────────────
     let systemState = lastAlarm.state;
 
-    // ─────────────────────────────────────
-    // 3️⃣ SAFE → ARMED after 1 min (after ack)
-    // ─────────────────────────────────────
     if (systemState === "SAFE") {
       const safeMinutes =
-        (now - new Date(lastAlarm.armedAt || lastAlarm.updatedAt).getTime()) / 60000;
+        (now - new Date(lastAlarm.armedAt || lastAlarm.updatedAt).getTime()) /
+        60000;
 
       if (safeMinutes >= ARM_DELAY_MINUTES) {
         systemState = "ARMED";
-
-        // ✅ persist ARMED so next request knows system is armed
         lastAlarm.state = "ARMED";
         await lastAlarm.save();
       }
     }
 
     // ─────────────────────────────────────
-    // 4️⃣ ARMED + danger → CREATE NEW ALARM
+    // 4️⃣ ARMED + danger → NEW ALARM
     // ─────────────────────────────────────
     if (systemState === "ARMED" && danger) {
       const newAlarm = await FireAlarm.create({
         devId: devid,
         roomNo: roomNo || lastAlarm.roomNo || "",
-        button,
+        button: buttonBool,
         smoke: smokeBool,
         fire: fireBool,
         state: "ALARM",
@@ -148,14 +127,15 @@ export const handleFireAlarm = async (req, res) => {
         success: true,
         ack: false,
         ackUser: "",
-        dateTime: newAlarm.eventTime?.toISOString?.() || "",
+        dateTime: newAlarm.eventTime.toISOString(),
       });
     }
 
     // ─────────────────────────────────────
-    // 5️⃣ OTHERWISE → update last record only
+    // 5️⃣ NO DANGER → SAFE RESPONSE
+    // (sensor smoke=false/fire=false case)
     // ─────────────────────────────────────
-    lastAlarm.button = button;
+    lastAlarm.button = buttonBool;
     lastAlarm.smoke = smokeBool;
     lastAlarm.fire = fireBool;
     lastAlarm.eventTime = eventTime;
@@ -165,7 +145,7 @@ export const handleFireAlarm = async (req, res) => {
 
     return res.json({
       success: true,
-      ack: lastAlarm.ack,
+      ack: true, // buzzer OFF
       ackUser: lastAlarm.ackUser || "",
       dateTime: eventTime.toISOString(),
     });
