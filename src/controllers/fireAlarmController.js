@@ -3,81 +3,119 @@ import FireAlarm from "../models/FireAlarm.js";
 const COOLDOWN_MINUTES = 1;
 
 // POST /firealm
-const ARM_DELAY_MINUTES = 5;
 
-// 🔥 DEVICE → SERVER
+
+const ARM_DELAY_MINUTES = 1;
+
 export const handleFireAlarm = async (req, res) => {
   try {
-    const { devid, button, time } = req.body;
+    const { devid, button, smoke, fire, time, roomNo } = req.body;
 
+    // ✅ Accept button-based payload (minimum required)
     if (!devid || typeof devid !== "string" || typeof button !== "boolean" || !time) {
       return res.status(400).json({
         success: false,
-        message: "Invalid payload",
+        message: "Invalid payload. Required: devid(string), button(boolean), time(ISO)",
       });
     }
 
     const eventTime = new Date(time);
-    if (isNaN(eventTime.getTime())) {
+    if (Number.isNaN(eventTime.getTime())) {
       return res.status(400).json({
         success: false,
-        message: "Invalid time format",
+        message: "Invalid time format. Must be ISO-8601.",
       });
     }
 
-    // 🔍 last alarm for this device (ack or not)
-    const lastAlarm = await FireAlarm.findOne({ devId: devid })
-      .sort({ createdAt: -1 });
+    // ✅ danger logic (old logic preserved, just includes button)
+    const smokeBool = typeof smoke === "boolean" ? smoke : false;
+    const fireBool = typeof fire === "boolean" ? fire : false;
+    const danger = button === true || smokeBool === true || fireBool === true;
 
+    // latest alarm (for state only)
+    const lastAlarm = await FireAlarm.findOne({ devId: devid }).sort({ createdAt: -1 });
     const now = Date.now();
 
-    // 🟡 CASE 1: Active alarm already exists (ack=false)
-    if (lastAlarm && lastAlarm.ack === false) {
-      lastAlarm.button = button;
-      lastAlarm.eventTime = eventTime;
-      await lastAlarm.save();
+    // ─────────────────────────────────────
+    // 1️⃣ FIRST ALARM EVER
+    // ─────────────────────────────────────
+    if (!lastAlarm) {
+      const first = await FireAlarm.create({
+        devId: devid,
+        roomNo: roomNo || "",      // ✅ room store
+        button,
+        smoke: smokeBool,
+        fire: fireBool,
+        state: danger ? "ALARM" : "SAFE",
+        ack: !danger,
+        ackUser: "",               // ✅ for response
+        eventTime,
+        armedAt: !danger ? new Date() : null,
+      });
 
       return res.json({
         success: true,
-        ack: false,
-        ackUser: "",
-        dateTime: eventTime.toISOString(),
+        ack: first.ack,
+        ackUser: first.ackUser || "",
+        dateTime: first.eventTime?.toISOString?.() || "",
       });
     }
 
-    // 🟠 CASE 2: Alarm was acknowledged → cooldown check
-    if (lastAlarm && lastAlarm.ack === true && lastAlarm.ackAt) {
-      const diffMinutes =
-        (now - new Date(lastAlarm.ackAt).getTime()) / 60000;
+    let systemState = lastAlarm.state;
 
-      if (diffMinutes < COOLDOWN_MINUTES) {
-        // ⛔ within 1 minute → do not create new alarm
-        return res.json({
-          success: true,
-          ack: true,
-          ackUser: lastAlarm.ackUser || "",
-          dateTime: lastAlarm.ackAt.toISOString(),
-        });
+    // ─────────────────────────────────────
+    // 2️⃣ SAFE → ARMED after 5 min
+    // ─────────────────────────────────────
+    if (systemState === "SAFE") {
+      const safeMinutes =
+        (now - new Date(lastAlarm.armedAt || lastAlarm.updatedAt).getTime()) / 60000;
+
+      if (safeMinutes >= ARM_DELAY_MINUTES) {
+        systemState = "ARMED";
       }
     }
 
-    // 🔥 CASE 3: Cooldown passed OR first alarm → create new alarm
-    const alarm = await FireAlarm.create({
-      devId: devid,
-      button,
-      eventTime,
-      ack: false,
-      ackUser: "",
-      ackAt: null,
-    });
+    // ─────────────────────────────────────
+    // 3️⃣ ARMED + danger → CREATE NEW ALARM
+    // ─────────────────────────────────────
+    if (systemState === "ARMED" && danger) {
+      const newAlarm = await FireAlarm.create({
+        devId: devid,
+        roomNo: roomNo || lastAlarm.roomNo || "", // ✅ keep room
+        button,
+        smoke: smokeBool,
+        fire: fireBool,
+        state: "ALARM",
+        ack: false,
+        ackUser: "",
+        eventTime,
+      });
+
+      return res.json({
+        success: true,
+        ack: newAlarm.ack,          // false
+        ackUser: newAlarm.ackUser,  // ""
+        dateTime: newAlarm.eventTime?.toISOString?.() || "",
+      });
+    }
+
+    // ─────────────────────────────────────
+    // 4️⃣ OTHERWISE → update last record only
+    // ─────────────────────────────────────
+    lastAlarm.button = button;      // ✅ update button
+    lastAlarm.smoke = smokeBool;
+    lastAlarm.fire = fireBool;
+    lastAlarm.eventTime = eventTime;
+    if (roomNo) lastAlarm.roomNo = roomNo; // ✅ update room if sent
+
+    await lastAlarm.save();
 
     return res.json({
       success: true,
-      ack: false,
-      ackUser: "",
-      dateTime: eventTime.toISOString(),
+      ack: lastAlarm.ack,
+      ackUser: lastAlarm.ackUser || "",
+      dateTime: lastAlarm.eventTime?.toISOString?.() || "",
     });
-
   } catch (err) {
     console.error("Fire alarm error:", err);
     res.status(500).json({
@@ -88,8 +126,6 @@ export const handleFireAlarm = async (req, res) => {
 };
 
 
-// PATCH /alarms/:id/ack
-// PATCH /api/alarms/:id/ack
 export const acknowledgeAlarm = async (req, res) => {
   try {
     const { id } = req.params;
@@ -97,42 +133,40 @@ export const acknowledgeAlarm = async (req, res) => {
 
     const alarm = await FireAlarm.findById(id);
     if (!alarm) {
-      return res.status(404).json({
-        success: false,
-        message: "Alarm not found",
-      });
+      return res.status(404).json({ success: false, message: "Alarm not found" });
     }
 
-    if (alarm.ack === true) {
-      // already acknowledged
-      return res.json({
-        success: true,
-        ack: true,
-        ackUser: alarm.ackUser || "",
-        dateTime: (alarm.ackAt || alarm.updatedAt)?.toISOString?.() || "",
-      });
+    if (alarm.state !== "ALARM") {
+      return res.status(400).json({ success: false, message: "Alarm not active" });
     }
 
+    alarm.state = "SAFE";
     alarm.ack = true;
-    alarm.ackUser = (user && String(user)) || "system";
-    alarm.ackAt = new Date();
 
+    alarm.acknowledgedAt = new Date();
+    alarm.acknowledgedBy = user || "system";
+
+    alarm.ackUser = alarm.acknowledgedBy; // ✅ NEW
+
+    alarm.armedAt = new Date(); // restart timer
     await alarm.save();
 
     return res.json({
       success: true,
-      ack: true,
-      ackUser: alarm.ackUser,
-      dateTime: alarm.ackAt.toISOString(),
+      message: "Alarm acknowledged, system SAFE",
+      data: {
+        state: alarm.state,
+        ack: alarm.ack,
+        roomNo: alarm.roomNo,
+        devId: alarm.devId,
+      },
     });
   } catch (err) {
     console.error("Acknowledge error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
 
 
 

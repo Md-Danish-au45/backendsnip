@@ -1,26 +1,29 @@
 import requests
 import time
 import random
-from datetime import datetime
+from datetime import datetime, UTC
 
 URL = "https://api.snipcol.com/api/alarms/firealm"
 
-# Change device IDs as needed
 DEVICES = [
-    "DEV001",
-    "DEV002"
+    "dev201",
+    "dev202"
 ]
 
-def send_alarm(dev_id, smoke, fire):
+def send_alarm(dev_id):
     payload = {
-        "devid": dev_id,
-        "smoke": smoke,
-        "fire": fire,
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "devid": dev_id,  # ⚠️ lowercase 'devid' (important)
+        "button": True,
+        "time": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     }
 
     try:
-        res = requests.post(URL, json=payload, timeout=5)
+        res = requests.post(
+            URL,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=5
+        )
         print(f"[{dev_id}] {res.status_code} -> {res.text}")
     except Exception as e:
         print(f"[{dev_id}] ERROR:", e)
@@ -31,12 +34,7 @@ if __name__ == "__main__":
 
     while True:
         for dev in DEVICES:
-            # Random alarm simulation
-            smoke = random.choice([True, False])
-            fire = random.choice([True, False])
+            if random.choice([True, False]):
+                send_alarm(dev)
 
-            # If smoke OR fire happens, push alarm
-            if smoke or fire:
-                send_alarm(dev, smoke, fire)
-
-        time.sleep(5)  # push every 5 seconds
+        time.sleep(5)
