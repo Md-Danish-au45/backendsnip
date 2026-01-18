@@ -11,7 +11,7 @@ export const handleFireAlarm = async (req, res) => {
   try {
     const { devid, button, smoke, fire, time, roomNo } = req.body;
 
-    // ✅ Accept button-based payload (minimum required)
+    // ✅ Validation
     if (!devid || typeof devid !== "string" || typeof button !== "boolean" || !time) {
       return res.status(400).json({
         success: false,
@@ -27,12 +27,12 @@ export const handleFireAlarm = async (req, res) => {
       });
     }
 
-    // ✅ danger logic (old logic preserved, just includes button)
+    // ✅ Danger logic
     const smokeBool = typeof smoke === "boolean" ? smoke : false;
     const fireBool = typeof fire === "boolean" ? fire : false;
     const danger = button === true || smokeBool === true || fireBool === true;
 
-    // latest alarm (for state only)
+    // 🔍 Get last alarm for this device
     const lastAlarm = await FireAlarm.findOne({ devId: devid }).sort({ createdAt: -1 });
     const now = Date.now();
 
@@ -42,13 +42,13 @@ export const handleFireAlarm = async (req, res) => {
     if (!lastAlarm) {
       const first = await FireAlarm.create({
         devId: devid,
-        roomNo: roomNo || "",      // ✅ room store
+        roomNo: roomNo || "",
         button,
         smoke: smokeBool,
         fire: fireBool,
         state: danger ? "ALARM" : "SAFE",
         ack: !danger,
-        ackUser: "",               // ✅ for response
+        ackUser: "",
         eventTime,
         armedAt: !danger ? new Date() : null,
       });
@@ -56,15 +56,15 @@ export const handleFireAlarm = async (req, res) => {
       return res.json({
         success: true,
         ack: first.ack,
-        ackUser: first.ackUser || "",
-        dateTime: first.eventTime?.toISOString?.() || "",
+        ackUser: "",
+        dateTime: first.eventTime.toISOString(),
       });
     }
 
     let systemState = lastAlarm.state;
 
     // ─────────────────────────────────────
-    // 2️⃣ SAFE → ARMED after 5 min
+    // 2️⃣ SAFE → ARMED after 1 minute
     // ─────────────────────────────────────
     if (systemState === "SAFE") {
       const safeMinutes =
@@ -72,6 +72,10 @@ export const handleFireAlarm = async (req, res) => {
 
       if (safeMinutes >= ARM_DELAY_MINUTES) {
         systemState = "ARMED";
+
+        // 🔥 IMPORTANT FIX (persist state)
+        lastAlarm.state = "ARMED";
+        await lastAlarm.save();
       }
     }
 
@@ -81,7 +85,7 @@ export const handleFireAlarm = async (req, res) => {
     if (systemState === "ARMED" && danger) {
       const newAlarm = await FireAlarm.create({
         devId: devid,
-        roomNo: roomNo || lastAlarm.roomNo || "", // ✅ keep room
+        roomNo: roomNo || lastAlarm.roomNo || "",
         button,
         smoke: smokeBool,
         fire: fireBool,
@@ -93,20 +97,38 @@ export const handleFireAlarm = async (req, res) => {
 
       return res.json({
         success: true,
-        ack: newAlarm.ack,          // false
-        ackUser: newAlarm.ackUser,  // ""
-        dateTime: newAlarm.eventTime?.toISOString?.() || "",
+        ack: false,
+        ackUser: "",
+        dateTime: newAlarm.eventTime.toISOString(),
       });
     }
 
     // ─────────────────────────────────────
-    // 4️⃣ OTHERWISE → update last record only
+    // 4️⃣ ALARM still active → keep buzzing
     // ─────────────────────────────────────
-    lastAlarm.button = button;      // ✅ update button
+    if (lastAlarm.state === "ALARM" && danger) {
+      lastAlarm.button = button;
+      lastAlarm.smoke = smokeBool;
+      lastAlarm.fire = fireBool;
+      lastAlarm.eventTime = eventTime;
+      await lastAlarm.save();
+
+      return res.json({
+        success: true,
+        ack: false,
+        ackUser: "",
+        dateTime: eventTime.toISOString(),
+      });
+    }
+
+    // ─────────────────────────────────────
+    // 5️⃣ No danger → just update
+    // ─────────────────────────────────────
+    lastAlarm.button = button;
     lastAlarm.smoke = smokeBool;
     lastAlarm.fire = fireBool;
     lastAlarm.eventTime = eventTime;
-    if (roomNo) lastAlarm.roomNo = roomNo; // ✅ update room if sent
+    if (roomNo) lastAlarm.roomNo = roomNo;
 
     await lastAlarm.save();
 
@@ -114,16 +136,17 @@ export const handleFireAlarm = async (req, res) => {
       success: true,
       ack: lastAlarm.ack,
       ackUser: lastAlarm.ackUser || "",
-      dateTime: lastAlarm.eventTime?.toISOString?.() || "",
+      dateTime: eventTime.toISOString(),
     });
   } catch (err) {
     console.error("Fire alarm error:", err);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Internal server error",
     });
   }
 };
+
 
 
 export const acknowledgeAlarm = async (req, res) => {
