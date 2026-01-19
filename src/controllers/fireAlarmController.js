@@ -3,14 +3,13 @@ import FireAlarm from "../models/FireAlarm.js";
 
 
 
-// Button re-trigger cooldown (minutes)
+
 const COOLDOWN_MINUTES = 1;
 
 export const handleFireAlarm = async (req, res) => {
   try {
-    const { devid, button, smoke, fire, time, roomNo } = req.body;
+    const { devid, button, smoke, fire, time } = req.body;
 
-    // ✅ BASIC validation
     if (!devid || !time) {
       return res.status(400).json({
         success: false,
@@ -18,7 +17,6 @@ export const handleFireAlarm = async (req, res) => {
       });
     }
 
-    // ✅ Normalize time (supports "YYYY-MM-DD HH:mm:ss" and ISO)
     const eventTime = new Date(String(time).replace(" ", "T"));
     if (Number.isNaN(eventTime.getTime())) {
       return res.status(400).json({
@@ -27,10 +25,9 @@ export const handleFireAlarm = async (req, res) => {
       });
     }
 
-    // ✅ danger = button OR smoke OR fire
     const danger = Boolean(button || smoke || fire);
 
-    // If nothing triggered, device should still get response
+    // device ko hamesha response
     if (!danger) {
       return res.json({
         success: true,
@@ -40,40 +37,49 @@ export const handleFireAlarm = async (req, res) => {
       });
     }
 
-    // ✅ fetch latest alarm for this device
-    const last = await FireAlarm.findOne({ devId: devid }).sort({ createdAt: -1 });
+    // 🔥 latest alarm of this device
+    const last = await FireAlarm.findOne({ devId: devid })
+      .sort({ createdAt: -1 });
 
-    // ✅ COOLDOWN RULE (after ACK / SAFE)
+    // ─────────────────────────────────────
+    // ✅ HARD COOLDOWN CHECK (MOST IMPORTANT)
+    // ─────────────────────────────────────
     if (last?.ack === true && last?.acknowledgedAt) {
-      const diffMin =
-        (eventTime.getTime() - new Date(last.acknowledgedAt).getTime()) / 60000;
+      const elapsedMs =
+        eventTime.getTime() - new Date(last.acknowledgedAt).getTime();
 
-      if (diffMin >= 0 && diffMin < COOLDOWN_MINUTES) {
+      const cooldownMs = COOLDOWN_MINUTES * 60 * 1000;
+
+      // ⛔ still in cooldown → DO NOT create
+      if (elapsedMs >= 0 && elapsedMs < cooldownMs) {
         return res.json({
           success: true,
           ack: true,
-          message: "Cooldown active, alarm not re-created",
           ackUser: last.ackUser || "",
+          message: "Cooldown active, wait before new alarm",
           dateTime: eventTime.toISOString(),
         });
       }
     }
 
-    // ✅ If last alarm is still active (ack=false), don't create new (optional safety)
+    // ─────────────────────────────────────
+    // ✅ If alarm already active → do nothing
+    // ─────────────────────────────────────
     if (last?.ack === false && last?.state === "ALARM") {
       return res.json({
         success: true,
         ack: false,
-        ackUser: last.ackUser || "",
+        ackUser: "",
         message: "Alarm already active",
         dateTime: eventTime.toISOString(),
       });
     }
 
-    // ✅ Create NEW unique alarm record (every ring unique)
-    const created = await FireAlarm.create({
+    // ─────────────────────────────────────
+    // ✅ NOW AND ONLY NOW → CREATE NEW ALARM
+    // ─────────────────────────────────────
+    const alarm = await FireAlarm.create({
       devId: devid,
-      roomNo: roomNo || "",
       button: Boolean(button),
       smoke: Boolean(smoke),
       fire: Boolean(fire),
@@ -81,15 +87,14 @@ export const handleFireAlarm = async (req, res) => {
       state: "ALARM",
       ack: false,
       ackUser: "",
-
       eventTime,
     });
 
     return res.json({
       success: true,
-      ack: created.ack, // false
-      ackUser: created.ackUser, // ""
-      dateTime: created.eventTime.toISOString(),
+      ack: false,
+      ackUser: "",
+      dateTime: alarm.eventTime.toISOString(),
     });
   } catch (err) {
     console.error("Fire alarm error:", err);
