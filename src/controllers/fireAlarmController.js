@@ -3,7 +3,6 @@ import FireAlarm from "../models/FireAlarm.js";
 
 
 
-
 const COOLDOWN_MINUTES = 1;
 
 export const handleFireAlarm = async (req, res) => {
@@ -27,7 +26,7 @@ export const handleFireAlarm = async (req, res) => {
 
     const danger = Boolean(button || smoke || fire);
 
-    // device ko hamesha response
+    // Device ko hamesha response
     if (!danger) {
       return res.json({
         success: true,
@@ -37,35 +36,36 @@ export const handleFireAlarm = async (req, res) => {
       });
     }
 
-    // 🔥 latest alarm of this device
+    // 🔥 Latest alarm of this device
     const last = await FireAlarm.findOne({ devId: devid })
       .sort({ createdAt: -1 });
 
+    const now = Date.now();
+
     // ─────────────────────────────────────
-    // ✅ HARD COOLDOWN CHECK (MOST IMPORTANT)
+    // ✅ HARD COOLDOWN (SERVER TIME BASED)
     // ─────────────────────────────────────
     if (last?.ack === true && last?.acknowledgedAt) {
       const elapsedMs =
-        eventTime.getTime() - new Date(last.acknowledgedAt).getTime();
+        now - new Date(last.acknowledgedAt).getTime();
 
       const cooldownMs = COOLDOWN_MINUTES * 60 * 1000;
 
-      // ⛔ still in cooldown → DO NOT create
-      if (elapsedMs >= 0 && elapsedMs < cooldownMs) {
+      if (elapsedMs < cooldownMs) {
         return res.json({
           success: true,
           ack: true,
           ackUser: last.ackUser || "",
-          message: "Cooldown active, wait before new alarm",
+          message: "Cooldown active, alarm suppressed",
           dateTime: eventTime.toISOString(),
         });
       }
     }
 
     // ─────────────────────────────────────
-    // ✅ If alarm already active → do nothing
+    // ✅ Alarm already active → NO duplicate
     // ─────────────────────────────────────
-    if (last?.ack === false && last?.state === "ALARM") {
+    if (last?.state === "ALARM" && last?.ack === false) {
       return res.json({
         success: true,
         ack: false,
@@ -76,7 +76,7 @@ export const handleFireAlarm = async (req, res) => {
     }
 
     // ─────────────────────────────────────
-    // ✅ NOW AND ONLY NOW → CREATE NEW ALARM
+    // ✅ ONLY AFTER COOLDOWN → CREATE NEW
     // ─────────────────────────────────────
     const alarm = await FireAlarm.create({
       devId: devid,
@@ -104,6 +104,7 @@ export const handleFireAlarm = async (req, res) => {
     });
   }
 };
+
 
 
 
