@@ -1,18 +1,16 @@
 import FireAlarm from "../models/FireAlarm.js";
 
+
+
+
+// Button re-trigger cooldown (minutes)
 const COOLDOWN_MINUTES = 1;
-
-// POST /firealm
-
-
-const ARM_DELAY_MINUTES = 1;
-
 
 export const handleFireAlarm = async (req, res) => {
   try {
     const { devid, button, smoke, fire, time, roomNo } = req.body;
 
-    // ✅ BASIC validation (device ko kabhi 400 na mile except truly invalid)
+    // ✅ BASIC validation
     if (!devid || !time) {
       return res.status(400).json({
         success: false,
@@ -20,7 +18,7 @@ export const handleFireAlarm = async (req, res) => {
       });
     }
 
-    // ✅ Normalize time (supports "YYYY-MM-DD HH:mm:ss")
+    // ✅ Normalize time (supports "YYYY-MM-DD HH:mm:ss" and ISO)
     const eventTime = new Date(String(time).replace(" ", "T"));
     if (Number.isNaN(eventTime.getTime())) {
       return res.status(400).json({
@@ -29,125 +27,69 @@ export const handleFireAlarm = async (req, res) => {
       });
     }
 
-    // ✅ Normalize booleans
-    const buttonBool = button === true;
-    const smokeBool = smoke === true;
-    const fireBool = fire === true;
+    // ✅ danger = button OR smoke OR fire
+    const danger = Boolean(button || smoke || fire);
 
-    // 🔥 DANGER logic (button = fire = smoke)
-    const danger = buttonBool || smokeBool || fireBool;
-
-    // 🔍 Fetch last alarm for this device
-    const lastAlarm = await FireAlarm.findOne({ devId: devid }).sort({
-      createdAt: -1,
-    });
-
-    const now = Date.now();
-
-    // ─────────────────────────────────────
-    // 1️⃣ FIRST EVENT EVER
-    // ─────────────────────────────────────
-    if (!lastAlarm) {
-      const first = await FireAlarm.create({
-        devId: devid,
-        roomNo: roomNo || "",
-        button: buttonBool,
-        smoke: smokeBool,
-        fire: fireBool,
-        state: danger ? "ALARM" : "SAFE",
-        ack: !danger,
-        ackUser: "",
-        eventTime,
-        armedAt: !danger ? new Date() : null,
-      });
-
+    // If nothing triggered, device should still get response
+    if (!danger) {
       return res.json({
         success: true,
-        ack: first.ack,
-        ackUser: "",
-        dateTime: first.eventTime.toISOString(),
-      });
-    }
-
-    // ─────────────────────────────────────
-    // 2️⃣ ALARM ACTIVE → NEVER CREATE NEW
-    // (exactly like old fire/smoke behavior)
-    // ─────────────────────────────────────
-    if (lastAlarm.state === "ALARM") {
-      lastAlarm.button = buttonBool;
-      lastAlarm.smoke = smokeBool;
-      lastAlarm.fire = fireBool;
-      lastAlarm.eventTime = eventTime;
-      if (roomNo) lastAlarm.roomNo = roomNo;
-
-      await lastAlarm.save();
-
-      return res.json({
-        success: true,
-        ack: false, // buzzer ON
+        ack: true,
         ackUser: "",
         dateTime: eventTime.toISOString(),
       });
     }
 
-    // ─────────────────────────────────────
-    // 3️⃣ SAFE → ARMED after 1 minute (post-ACK)
-    // ─────────────────────────────────────
-    let systemState = lastAlarm.state;
+    // ✅ fetch latest alarm for this device
+    const last = await FireAlarm.findOne({ devId: devid }).sort({ createdAt: -1 });
 
-    if (systemState === "SAFE") {
-      const safeMinutes =
-        (now - new Date(lastAlarm.armedAt || lastAlarm.updatedAt).getTime()) /
-        60000;
+    // ✅ COOLDOWN RULE (after ACK / SAFE)
+    if (last?.ack === true && last?.acknowledgedAt) {
+      const diffMin =
+        (eventTime.getTime() - new Date(last.acknowledgedAt).getTime()) / 60000;
 
-      if (safeMinutes >= ARM_DELAY_MINUTES) {
-        systemState = "ARMED";
-        lastAlarm.state = "ARMED";
-        await lastAlarm.save();
+      if (diffMin >= 0 && diffMin < COOLDOWN_MINUTES) {
+        return res.json({
+          success: true,
+          ack: true,
+          message: "Cooldown active, alarm not re-created",
+          ackUser: last.ackUser || "",
+          dateTime: eventTime.toISOString(),
+        });
       }
     }
 
-    // ─────────────────────────────────────
-    // 4️⃣ ARMED + danger → NEW ALARM
-    // ─────────────────────────────────────
-    if (systemState === "ARMED" && danger) {
-      const newAlarm = await FireAlarm.create({
-        devId: devid,
-        roomNo: roomNo || lastAlarm.roomNo || "",
-        button: buttonBool,
-        smoke: smokeBool,
-        fire: fireBool,
-        state: "ALARM",
-        ack: false,
-        ackUser: "",
-        eventTime,
-      });
-
+    // ✅ If last alarm is still active (ack=false), don't create new (optional safety)
+    if (last?.ack === false && last?.state === "ALARM") {
       return res.json({
         success: true,
         ack: false,
-        ackUser: "",
-        dateTime: newAlarm.eventTime.toISOString(),
+        ackUser: last.ackUser || "",
+        message: "Alarm already active",
+        dateTime: eventTime.toISOString(),
       });
     }
 
-    // ─────────────────────────────────────
-    // 5️⃣ NO DANGER → SAFE RESPONSE
-    // (sensor smoke=false/fire=false case)
-    // ─────────────────────────────────────
-    lastAlarm.button = buttonBool;
-    lastAlarm.smoke = smokeBool;
-    lastAlarm.fire = fireBool;
-    lastAlarm.eventTime = eventTime;
-    if (roomNo) lastAlarm.roomNo = roomNo;
+    // ✅ Create NEW unique alarm record (every ring unique)
+    const created = await FireAlarm.create({
+      devId: devid,
+      roomNo: roomNo || "",
+      button: Boolean(button),
+      smoke: Boolean(smoke),
+      fire: Boolean(fire),
 
-    await lastAlarm.save();
+      state: "ALARM",
+      ack: false,
+      ackUser: "",
+
+      eventTime,
+    });
 
     return res.json({
       success: true,
-      ack: true, // buzzer OFF
-      ackUser: lastAlarm.ackUser || "",
-      dateTime: eventTime.toISOString(),
+      ack: created.ack, // false
+      ackUser: created.ackUser, // ""
+      dateTime: created.eventTime.toISOString(),
     });
   } catch (err) {
     console.error("Fire alarm error:", err);
@@ -179,10 +121,8 @@ export const acknowledgeAlarm = async (req, res) => {
 
     alarm.acknowledgedAt = new Date();
     alarm.acknowledgedBy = user || "system";
+    alarm.ackUser = alarm.acknowledgedBy;
 
-    alarm.ackUser = alarm.acknowledgedBy; // ✅ NEW
-
-    alarm.armedAt = new Date(); // restart timer
     await alarm.save();
 
     return res.json({
@@ -200,8 +140,6 @@ export const acknowledgeAlarm = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
-
-
 
 
 

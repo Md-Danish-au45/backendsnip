@@ -1,15 +1,13 @@
-// models/FireAlarm.js
 import mongoose from "mongoose";
 
 const FireAlarmSchema = new mongoose.Schema(
   {
     devId: { type: String, required: true, index: true },
+    roomNo: { type: String, default: "" },
 
-    roomNo: { type: String, default: "" },   // ✅ NEW
-    button: { type: Boolean, default: false }, // ✅ NEW
-
-    smoke: Boolean,
-    fire: Boolean,
+    button: { type: Boolean, default: false },
+    smoke: { type: Boolean, default: false },
+    fire: { type: Boolean, default: false },
 
     state: {
       type: String,
@@ -18,14 +16,12 @@ const FireAlarmSchema = new mongoose.Schema(
     },
 
     ack: { type: Boolean, default: true },
+    ackUser: { type: String, default: "" },
 
-    ackUser: { type: String, default: "" }, // ✅ NEW (for response)
     eventTime: { type: Date, required: true },
 
-    armedAt: { type: Date },
-
-    acknowledgedAt: Date,
-    acknowledgedBy: String,
+    acknowledgedAt: { type: Date },
+    acknowledgedBy: { type: String },
   },
   { timestamps: true }
 );
