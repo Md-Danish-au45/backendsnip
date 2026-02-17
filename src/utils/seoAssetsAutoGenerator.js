@@ -248,6 +248,74 @@ const buildPlainUrlList = (pageEntries, blogEntries, faqEntries) =>
 const buildBlogLinksTxt = (blogs) => blogs.map((blog) => `${SITE_URL}/blog/${blog.slug}`).join("\n") + "\n";
 const buildFaqLinksTxt = (faqs) => faqs.map((faq) => `${SITE_URL}/faqs/${asFaqSlug(faq)}`).join("\n") + "\n";
 
+const buildEntriesStructureJson = (pageEntries, blogs, faqs, generatedAt) =>
+  JSON.stringify(
+    {
+      site: SITE_URL,
+      generatedAt: toIsoDate(generatedAt),
+      counts: {
+        pages: pageEntries.length,
+        blogs: blogs.length,
+        faqs: faqs.length,
+        total: pageEntries.length + blogs.length + faqs.length,
+      },
+      entries: {
+        pages: pageEntries.map((entry) => ({
+          type: "page",
+          url: entry.loc,
+          changefreq: entry.changefreq,
+          priority: entry.priority,
+          lastmod: toIsoDate(entry.lastmod),
+        })),
+        blogs: blogs.map((blog) => ({
+          type: "blog",
+          slug: blog.slug,
+          url: `${SITE_URL}/blog/${blog.slug}`,
+          title: stripHtml(blog.title || ""),
+          updatedAt: toIsoDate(blog.updatedAt || blog.publishedAt || blog.createdAt),
+        })),
+        faqs: faqs.map((faq) => ({
+          type: "faq",
+          slug: asFaqSlug(faq),
+          url: `${SITE_URL}/faqs/${asFaqSlug(faq)}`,
+          question: stripHtml(faq.question || ""),
+          updatedAt: toIsoDate(faq.updatedAt || faq.createdAt),
+        })),
+      },
+    },
+    null,
+    2
+  ) + "\n";
+
+const buildSeoContentMarkdown = (blogs, faqs, generatedAt) => {
+  const lines = [
+    "# SNIPCOL SEO Content Hub",
+    "",
+    `Generated: ${toIsoDate(generatedAt)}`,
+    `Canonical: ${SITE_URL}/`,
+    "",
+    "## Brand Summary",
+    "SNIPCOL is a universal protocol integration platform for industrial automation, utility operations, smart building ecosystems and edge-cloud architectures.",
+    "The platform is engineered for reliable protocol translation, secure data transfer and scalable deployment in enterprise environments.",
+    "",
+    "## Core SEO Pages",
+    ...staticRoutes.map((route) => `- ${SITE_URL}${route.path}`),
+    "",
+    "## Latest Blog Highlights",
+    ...blogs.slice(0, 100).map((blog) => `- ${stripHtml(blog.title || "")} (${SITE_URL}/blog/${blog.slug})`),
+    "",
+    "## Latest FAQ Highlights",
+    ...faqs.slice(0, 200).map((faq) => `- ${stripHtml(faq.question || "")} (${SITE_URL}/faqs/${asFaqSlug(faq)})`),
+    "",
+    "## Technical SEO Notes",
+    "- Canonical URLs are HTTPS.",
+    "- XML sitemaps are generated automatically from live data.",
+    "- LLM and machine-readable files are regenerated after blog/faq updates.",
+    "",
+  ];
+  return lines.join("\n");
+};
+
 const writeFileSafely = async (name, content) => {
   const filePath = path.join(OUTPUT_DIR, name);
   await fs.writeFile(filePath, content, "utf8");
@@ -309,6 +377,8 @@ export const regenerateSeoAssetsNow = async (reason = "manual", logger = console
     writeFileSafely("faq.txt", buildFaqTxt(faqs)),
     writeFileSafely("llms.txt", buildLlmsTxt(blogs, faqs)),
     writeFileSafely("llms-full.md", buildLlmsFullMarkdown(blogs, faqs)),
+    writeFileSafely("seo-content.md", buildSeoContentMarkdown(blogs, faqs, now)),
+    writeFileSafely("entries-structure.json", buildEntriesStructureJson(pageEntries, blogs, faqs, now)),
     writeFileSafely("all-urls.txt", buildPlainUrlList(pageEntries, blogEntries, faqEntries)),
     writeFileSafely("blog-links.txt", buildBlogLinksTxt(blogs)),
     writeFileSafely("faq-links.txt", buildFaqLinksTxt(faqs)),

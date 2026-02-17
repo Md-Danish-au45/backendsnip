@@ -199,6 +199,71 @@ const fetchSeoData = async () => {
   return { blogs, faqs };
 };
 
+const buildEntriesStructureJson = ({ blogs = [], faqs = [] }) =>
+  JSON.stringify(
+    {
+      site: SITE_URL,
+      generatedAt: new Date().toISOString(),
+      counts: {
+        pages: staticRoutes.length,
+        blogs: blogs.length,
+        faqs: faqs.length,
+        total: staticRoutes.length + blogs.length + faqs.length,
+      },
+      entries: {
+        pages: staticRoutes.map((route) => ({
+          type: "page",
+          url: `${SITE_URL}${route.path}`,
+          changefreq: route.changefreq,
+          priority: route.priority,
+        })),
+        blogs: blogs.map((blog) => ({
+          type: "blog",
+          slug: blog.slug,
+          url: `${SITE_URL}/blog/${blog.slug}`,
+          title: cleanText(blog.title || ""),
+          updatedAt: toIsoDate(blog.updatedAt || blog.publishedAt || blog.createdAt),
+        })),
+        faqs: faqs.map((faq) => {
+          const slug = faq.slug || toSeoSlug(faq.question);
+          return {
+            type: "faq",
+            slug,
+            url: `${SITE_URL}/faqs/${slug}`,
+            question: cleanText(faq.question || ""),
+            updatedAt: toIsoDate(faq.updatedAt || faq.createdAt),
+          };
+        }),
+      },
+    },
+    null,
+    2
+  ) + "\n";
+
+const buildSeoContentMarkdown = ({ blogs = [], faqs = [] }) => {
+  const lines = [
+    "# SNIPCOL SEO Content Hub",
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    `Canonical: ${SITE_URL}/`,
+    "",
+    "## Brand Summary",
+    "SNIPCOL is a universal protocol integration platform for industrial automation, utility environments, smart building operations and edge-cloud interoperability.",
+    "The platform focuses on secure data exchange, protocol translation and deployment-ready implementation architecture.",
+    "",
+    "## Core SEO Pages",
+    ...staticRoutes.map((route) => `- ${SITE_URL}${route.path}`),
+    "",
+    "## Latest Blog Highlights",
+    ...blogs.slice(0, 100).map((blog) => `- ${cleanText(blog.title || "")} (${SITE_URL}/blog/${blog.slug})`),
+    "",
+    "## Latest FAQ Highlights",
+    ...faqs.slice(0, 200).map((faq) => `- ${cleanText(faq.question || "")} (${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)})`),
+    "",
+  ];
+  return lines.join("\n");
+};
+
 export const serveSitemapXml = async (_req, res) => {
   try {
     const seoData = await fetchSeoData();
@@ -352,6 +417,36 @@ export const serveAllUrlsText = async (_req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to generate all-urls.txt",
+      error: error.message,
+    });
+  }
+};
+
+export const serveEntriesStructureJson = async (_req, res) => {
+  try {
+    const seoData = await fetchSeoData();
+    const content = buildEntriesStructureJson(seoData);
+    res.set("Content-Type", "application/json; charset=utf-8");
+    return res.status(200).send(content);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate entries-structure.json",
+      error: error.message,
+    });
+  }
+};
+
+export const serveSeoContentMarkdown = async (_req, res) => {
+  try {
+    const seoData = await fetchSeoData();
+    const content = buildSeoContentMarkdown(seoData);
+    res.set("Content-Type", "text/markdown; charset=utf-8");
+    return res.status(200).send(content);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate seo-content.md",
       error: error.message,
     });
   }

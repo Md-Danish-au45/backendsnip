@@ -12,10 +12,12 @@ import SyncLog from './models/SyncLogModel.js';
 import { startAutoFixService } from './scripts/autoFixBlogs.js';
 import {
   serveAllUrlsText,
+  serveEntriesStructureJson,
   serveFaqText,
   serveImageSitemapXml,
   serveLlmsFullMarkdown,
   serveLlmsText,
+  serveSeoContentMarkdown,
   serveSitemapIndexXml,
   serveSitemapXml,
 } from './controllers/seoController.js';
@@ -89,6 +91,8 @@ app.get('/faq.txt', serveFaqText);
 app.get('/llms.txt', serveLlmsText);
 app.get('/llms-full.md', serveLlmsFullMarkdown);
 app.get('/all-urls.txt', serveAllUrlsText);
+app.get('/entries-structure.json', serveEntriesStructureJson);
+app.get('/seo-content.md', serveSeoContentMarkdown);
 app.use('/api', mainRouter);
 
 // Generate static SEO assets once on boot (if output path exists/enabled).
