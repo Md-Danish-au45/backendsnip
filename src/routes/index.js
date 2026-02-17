@@ -17,6 +17,7 @@ import nodemailer from 'nodemailer';
 import contact from '../routes/contactRoutes.js';
 import faqs from '../routes/faq.routes.js';
 import fireAlarmRoutes from '../routes/fireAlarmRoute.js';
+import seoRoutes from '../routes/seoRoute.js';
 
 const router = express.Router();
 
@@ -36,6 +37,7 @@ router.use('/services', serviceRoutes);
 // For managing coupons
 router.use('/coupons', couponRoutes); 
 router.use('/faqs', faqs); 
+router.use('/seo', seoRoutes);
 
 const sendEmailController = async (req, res) => {
   const { name, email, subject, message } = req.body;

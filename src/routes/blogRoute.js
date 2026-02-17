@@ -24,8 +24,8 @@ const blogImageFields = [
 // Public routes
 router.get('/', getAllBlogs);
 router.get('/categories', getBlogCategories);
-router.get('/:slug', getBlogBySlug);
-router.get('/:slug/related', getRelatedBlogs);
+router.get('/keywords', getAllKeywords); // All unique keywords
+router.get('/by-keyword/:keyword', getBlogsByKeyword); // Blogs for a keyword
 
 // Admin routes
 router.get('/admin/all', protect, authorize('admin'), getAllBlogsAdmin);
@@ -33,9 +33,8 @@ router.post('/', protect, authorize('admin'), upload.fields(blogImageFields), cr
 router.put('/:id', protect, authorize('admin'), upload.fields(blogImageFields), updateBlog);
 router.delete('/:id', protect, authorize('admin'), deleteBlog);
 
-
-// Public routes
-router.get('/keywords', getAllKeywords); // All unique keywords
-router.get('/by-keyword/:keyword', getBlogsByKeyword); // Blogs for a keyword
+// Public dynamic routes
+router.get('/:slug/related', getRelatedBlogs);
+router.get('/:slug', getBlogBySlug);
 
 export default router;
