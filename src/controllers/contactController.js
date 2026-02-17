@@ -4,27 +4,48 @@ import FormData from "form-data";
 import asyncHandler from "../middleware/asyncHandler.js";
 
 const EMAIL_RECIPIENTS = ["mdshoaib018@gmail.com", "danishm856@gmail.com"];
-const WHATSAPP_RECIPIENTS = ["+919654570253", "+917982981354"];
+const DEFAULT_WHATSAPP_RECIPIENTS = ["+919654570253", "+917982981354"];
 const WHATSBOOST_URL = "https://www.whatsboost.in/api/create-message";
 const WHATSBOOST_APPKEY = process.env.WHATSBOOST_APPKEY || "1dc0c778-b719-4a30-9ff0-ce7e68cd1643";
 const WHATSBOOST_AUTHKEY = process.env.WHATSBOOST_AUTHKEY || "85llFpgGSQURNYg6VqmnlSra1mjwrNvGLRVLkq8wOPQZKr9trn";
 const MAX_WHATSAPP_MESSAGE_LENGTH = 1200;
-const WHATSAPP_SEND_RETRIES = 2;
+const WHATSAPP_SEND_RETRIES = Math.max(1, Number(process.env.WHATSAPP_SEND_RETRIES || 3));
+const LEAD_MARKER_TEXT = "ye lead aayi h aur lead snipcol ka hai";
 
 const clean = (value = "") => String(value).trim();
 const toDigits = (value = "") => String(value).replace(/\D/g, "");
+const normalizeIndianPhone = (value = "") => {
+  const digits = toDigits(value);
+  if (!digits) return "";
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 11 && digits.startsWith("0")) return `+91${digits.slice(1)}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  return value.trim().startsWith("+") ? `+${digits}` : `+${digits}`;
+};
+const resolveWhatsappRecipients = () => {
+  const raw = clean(process.env.WHATSAPP_RECIPIENTS || "");
+  const parsed = raw
+    ? raw
+        .split(",")
+        .map((item) => normalizeIndianPhone(item))
+        .filter(Boolean)
+    : [];
+  return parsed.length ? parsed : DEFAULT_WHATSAPP_RECIPIENTS;
+};
+const WHATSAPP_RECIPIENTS = resolveWhatsappRecipients();
+
 const buildWhatsappNumberVariants = (value = "") => {
   const digits = toDigits(value);
   if (!digits) return [];
 
   const variants = [];
   if (digits.length === 10) {
-    variants.push(digits, `91${digits}`, `+91${digits}`);
+    variants.push(`+91${digits}`, `91${digits}`, digits);
   } else if (digits.length === 12 && digits.startsWith("91")) {
     const local = digits.slice(2);
-    variants.push(local, digits, `+${digits}`);
+    variants.push(`+${digits}`, digits, local);
   } else if (digits.length > 10) {
-    variants.push(digits, `+${digits}`);
+    variants.push(`+${digits}`, digits);
   } else {
     variants.push(digits);
   }
@@ -59,10 +80,12 @@ const sendWhatsappMessage = async ({ to, message }) => {
       return { message_status: "Failed", raw: response.data };
     }
   })();
-  const statusCode = payload?.data?.status_code;
-  const messageStatus = payload?.message_status;
+  const statusCode = Number(payload?.data?.status_code ?? payload?.status_code ?? 0);
+  const messageStatus = String(payload?.message_status || payload?.status || "").toLowerCase();
+  const statusCodeLooksValid = statusCode === 0 || statusCode === 200;
+  const messageLooksValid = !messageStatus || messageStatus === "success";
 
-  if (messageStatus !== "Success" || statusCode !== 200) {
+  if (!messageLooksValid || !statusCodeLooksValid) {
     throw new Error(`WhatsApp API rejected message for ${to}: ${JSON.stringify(payload)}`);
   }
 
@@ -93,9 +116,10 @@ export const sendContactMessage = asyncHandler(async (req, res) => {
   const name = clean(req.body?.name);
   const email = clean(req.body?.email);
   const company = clean(req.body?.company);
-  const phone = clean(req.body?.phone);
+  const phone = normalizeIndianPhone(req.body?.phone || "");
   const subject = clean(req.body?.subject);
   const message = clean(req.body?.message);
+  const source = clean(req.body?.source || "website");
   const clientIp =
     req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
     req.socket?.remoteAddress ||
@@ -112,7 +136,7 @@ export const sendContactMessage = asyncHandler(async (req, res) => {
   const canSendEmail = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
   let emailPromise = Promise.resolve("Email skipped (SMTP not configured)");
   console.log(
-    `[contact] incoming lead ip=${clientIp} email=${email} subject="${subject}" phone=${phone || "NA"}`
+    `[contact] incoming lead ip=${clientIp} source=${source} email=${email} subject="${subject}" phone=${phone || "NA"}`
   );
 
   if (canSendEmail) {
@@ -151,12 +175,14 @@ export const sendContactMessage = asyncHandler(async (req, res) => {
 
   const whatsappMessage = [
     "SNIPCOL LEAD",
+    `Source=${source}`,
     `Name=${name}`,
     `Email=${email}`,
     `Phone=${phone || "NA"}`,
     `Company=${company || "NA"}`,
     `Subject=${subject || "NA"}`,
     `Message=${message}`,
+    `LeadTag=${LEAD_MARKER_TEXT}`,
   ].join(" | ");
 
   const emailResult = await Promise.allSettled([emailPromise]).then((results) => results[0]);
