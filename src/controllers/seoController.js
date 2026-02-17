@@ -24,6 +24,15 @@ const cleanText = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const toSeoSlug = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "faq";
+
 const staticRoutes = [
   { path: "/", changefreq: "daily", priority: "1.0" },
   { path: "/IndustrialAutomation", changefreq: "weekly", priority: "0.9" },
@@ -91,11 +100,12 @@ const buildSitemapXml = ({ blogs = [], faqs = [] }) => {
   }
 
   for (const faq of faqs) {
-    if (!faq.slug) continue;
+    const slug = faq.slug || toSeoSlug(faq.question);
+    if (!slug) continue;
 
     nodes.push(
       buildUrlNode({
-        loc: `${SITE_URL}/faqs/${faq.slug}`,
+        loc: `${SITE_URL}/faqs/${slug}`,
         lastmod: faq.updatedAt || faq.createdAt || nowIso,
         changefreq: "monthly",
         priority: "0.7",
@@ -108,29 +118,76 @@ const buildSitemapXml = ({ blogs = [], faqs = [] }) => {
   );
 };
 
-const buildSitemapIndexXml = () =>
+const buildSitemapIndexXml = (lastmod = new Date().toISOString()) =>
   [
     XML_HEADER,
     '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     "  <sitemap>",
     `    <loc>${xmlEscape(`${SITE_URL}/sitemap.xml`)}</loc>`,
+    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "  <sitemap>",
     `    <loc>${xmlEscape(`${SITE_URL}/blog-sitemap.xml`)}</loc>`,
+    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "  <sitemap>",
     `    <loc>${xmlEscape(`${SITE_URL}/faq-sitemap.xml`)}</loc>`,
+    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "  <sitemap>",
     `    <loc>${xmlEscape(`${SITE_URL}/page-sitemap.xml`)}</loc>`,
+    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
+    "  </sitemap>",
+    "  <sitemap>",
+    `    <loc>${xmlEscape(`${SITE_URL}/image-sitemap.xml`)}</loc>`,
+    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
+    "  </sitemap>",
+    "  <sitemap>",
+    `    <loc>${xmlEscape(`${SITE_URL}/product-sitemap.xml`)}</loc>`,
+    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "</sitemapindex>",
   ].join("\n");
 
+const buildImageSitemapXml = (blogs = []) => {
+  const lines = [
+    XML_HEADER,
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
+  ];
+
+  lines.push("  <url>");
+  lines.push(`    <loc>${xmlEscape(`${SITE_URL}/`)}</loc>`);
+  lines.push("    <image:image>");
+  lines.push(`      <image:loc>${xmlEscape(`${SITE_URL}/android-chrome-512x512.png`)}</image:loc>`);
+  lines.push("      <image:title>SNIPCOL</image:title>");
+  lines.push("      <image:caption>SNIPCOL protocol integration platform</image:caption>");
+  lines.push("    </image:image>");
+  lines.push("  </url>");
+
+  for (const blog of blogs) {
+    const imageUrl = blog?.featuredImage?.url;
+    if (!blog?.slug || !imageUrl) continue;
+
+    lines.push("  <url>");
+    lines.push(`    <loc>${xmlEscape(`${SITE_URL}/blog/${blog.slug}`)}</loc>`);
+    lines.push("    <image:image>");
+    lines.push(`      <image:loc>${xmlEscape(imageUrl)}</image:loc>`);
+    lines.push(`      <image:title>${xmlEscape(cleanText(blog.title || "SNIPCOL Blog"))}</image:title>`);
+    lines.push(
+      `      <image:caption>${xmlEscape(cleanText(blog.excerpt || blog.metaDescription || "SNIPCOL technical blog"))}</image:caption>`
+    );
+    lines.push("    </image:image>");
+    lines.push("  </url>");
+  }
+
+  lines.push("</urlset>");
+  return lines.join("\n");
+};
+
 const fetchSeoData = async () => {
   const [blogs, faqs] = await Promise.all([
     Blog.find(publishedBlogFilter)
-      .select("slug publishedAt updatedAt createdAt")
+      .select("slug title excerpt metaDescription featuredImage publishedAt updatedAt createdAt")
       .sort({ updatedAt: -1 })
       .lean(),
     FAQ.find({ $or: [{ isPublished: true }, { isPublished: { $exists: false } }, { isPublished: null }] })
@@ -148,6 +205,7 @@ export const serveSitemapXml = async (_req, res) => {
     const xml = buildSitemapXml(seoData);
 
     res.set("Content-Type", "application/xml; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=900, s-maxage=900");
     return res.status(200).send(xml);
   } catch (error) {
     return res.status(500).json({
@@ -160,13 +218,30 @@ export const serveSitemapXml = async (_req, res) => {
 
 export const serveSitemapIndexXml = async (_req, res) => {
   try {
-    const xml = buildSitemapIndexXml();
+    const xml = buildSitemapIndexXml(new Date().toISOString());
     res.set("Content-Type", "application/xml; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=900, s-maxage=900");
     return res.status(200).send(xml);
   } catch (error) {
     return res.status(500).json({
       success: false,
       message: "Failed to generate sitemap index",
+      error: error.message,
+    });
+  }
+};
+
+export const serveImageSitemapXml = async (_req, res) => {
+  try {
+    const { blogs } = await fetchSeoData();
+    const xml = buildImageSitemapXml(blogs);
+    res.set("Content-Type", "application/xml; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=900, s-maxage=900");
+    return res.status(200).send(xml);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate image sitemap",
       error: error.message,
     });
   }
@@ -182,9 +257,10 @@ export const serveFaqText = async (_req, res) => {
     const lines = ["# SNIPCOL FAQ", `# Source: ${SITE_URL}/faqs`, ""];
 
     for (const faq of faqs) {
+      const slug = faq.slug || toSeoSlug(faq.question);
       lines.push(`Q: ${cleanText(faq.question)}`);
       lines.push(`A: ${cleanText(faq.answer)}`);
-      lines.push(`URL: ${SITE_URL}/faqs/${faq.slug || ""}`);
+      lines.push(`URL: ${SITE_URL}/faqs/${slug}`);
       lines.push("");
     }
 
@@ -215,7 +291,7 @@ export const serveLlmsText = async (_req, res) => {
       ...blogs.slice(0, 50).map((blog) => `- ${SITE_URL}/blog/${blog.slug}`),
       "",
       "## Latest FAQ URLs",
-      ...faqs.slice(0, 100).map((faq) => `- ${SITE_URL}/faqs/${faq.slug}`),
+      ...faqs.slice(0, 100).map((faq) => `- ${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)}`),
       "",
     ];
 
@@ -246,7 +322,7 @@ export const serveLlmsFullMarkdown = async (_req, res) => {
       ...blogs.map((blog) => `- ${SITE_URL}/blog/${blog.slug}`),
       "",
       "## FAQ URLs",
-      ...faqs.map((faq) => `- ${SITE_URL}/faqs/${faq.slug}`),
+      ...faqs.map((faq) => `- ${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)}`),
       "",
     ];
 
@@ -267,7 +343,7 @@ export const serveAllUrlsText = async (_req, res) => {
     const lines = [
       ...staticRoutes.map((route) => `${SITE_URL}${route.path}`),
       ...blogs.map((blog) => `${SITE_URL}/blog/${blog.slug}`),
-      ...faqs.map((faq) => `${SITE_URL}/faqs/${faq.slug}`),
+      ...faqs.map((faq) => `${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)}`),
     ];
 
     res.set("Content-Type", "text/plain; charset=utf-8");

@@ -1,5 +1,6 @@
 import Blog from '../models/BlogModel.js';
 import { v2 as cloudinary } from 'cloudinary';
+import { scheduleSeoAssetsRegeneration } from "../utils/seoAssetsAutoGenerator.js";
 
 // Ensure Cloudinary is configured
 cloudinary.config({
@@ -51,6 +52,7 @@ export const createBlog = async (req, res) => {
       ...data,
       status: data.status || 'published'
     });
+    scheduleSeoAssetsRegeneration("blog:create");
 
     res.status(201).json({ success: true, data: blog });
   } catch (error) {
@@ -248,6 +250,7 @@ export const updateBlog = async (req, res) => {
       new: true,
       runValidators: true,
     });
+    scheduleSeoAssetsRegeneration("blog:update");
 
     res.status(200).json({ success: true, data: updatedBlog });
   } catch (error) {
@@ -272,6 +275,7 @@ export const deleteBlog = async (req, res) => {
     }
     
     await blog.deleteOne();
+    scheduleSeoAssetsRegeneration("blog:delete");
     res.status(200).json({ success: true, message: 'Blog deleted successfully' });
   } catch (error) {
     console.error('Error in deleteBlog:', error);

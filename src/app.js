@@ -13,11 +13,13 @@ import { startAutoFixService } from './scripts/autoFixBlogs.js';
 import {
   serveAllUrlsText,
   serveFaqText,
+  serveImageSitemapXml,
   serveLlmsFullMarkdown,
   serveLlmsText,
   serveSitemapIndexXml,
   serveSitemapXml,
 } from './controllers/seoController.js';
+import { regenerateSeoAssetsNow } from './utils/seoAssetsAutoGenerator.js';
 
 dotenv.config();
 
@@ -82,11 +84,17 @@ app.use('/api/external', externalApiLimiter);
 // Mount main routes
 app.get('/sitemap.xml', serveSitemapXml);
 app.get('/sitemap-index.xml', serveSitemapIndexXml);
+app.get('/image-sitemap.xml', serveImageSitemapXml);
 app.get('/faq.txt', serveFaqText);
 app.get('/llms.txt', serveLlmsText);
 app.get('/llms-full.md', serveLlmsFullMarkdown);
 app.get('/all-urls.txt', serveAllUrlsText);
 app.use('/api', mainRouter);
+
+// Generate static SEO assets once on boot (if output path exists/enabled).
+void regenerateSeoAssetsNow("startup", console).catch((error) => {
+  console.error("[seo:auto] startup generation failed:", error.message);
+});
 
 // Custom error handler
 app.use(errorHandler);
@@ -123,6 +131,15 @@ cron.schedule("0 2 * * *", async () => {
     console.log("🎉 Blog sync cron completed!");
   } catch (err) {
     console.error("❌ Cron job failed:", err.message);
+  }
+});
+
+// Safety sync every 30 minutes so XML/TXT files remain fresh even if hooks were skipped.
+cron.schedule("*/30 * * * *", async () => {
+  try {
+    await regenerateSeoAssetsNow("cron:30m", console);
+  } catch (error) {
+    console.error("[seo:auto] periodic sync failed:", error.message);
   }
 });
 

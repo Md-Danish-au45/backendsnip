@@ -1,5 +1,6 @@
 import FAQ from "../models/faq.model.js";
 import slugify from "slugify";
+import { scheduleSeoAssetsRegeneration } from "../utils/seoAssetsAutoGenerator.js";
 
 const buildFaqSlug = (question = "faq") =>
   slugify(String(question), { lower: true, strict: true, trim: true }) || "faq";
@@ -44,6 +45,7 @@ export const createFAQ = async (req, res) => {
     payload.slug = await createUniqueFaqSlug(payload.question);
 
     const faq = await FAQ.create(payload);
+    scheduleSeoAssetsRegeneration("faq:create");
     res.status(201).json({
       success: true,
       message: "FAQ created successfully",
@@ -150,6 +152,7 @@ export const updateFAQ = async (req, res) => {
       message: "FAQ updated",
       data: withSeoDefaults(faq),
     });
+    scheduleSeoAssetsRegeneration("faq:update");
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -161,6 +164,7 @@ export const deleteFAQ = async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ success: false, message: "FAQ not found" });
     }
+    scheduleSeoAssetsRegeneration("faq:delete");
     res.json({ success: true, message: "FAQ deleted" });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
