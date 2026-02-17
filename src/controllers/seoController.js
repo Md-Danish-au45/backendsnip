@@ -133,7 +133,7 @@ const fetchSeoData = async () => {
       .select("slug publishedAt updatedAt createdAt")
       .sort({ updatedAt: -1 })
       .lean(),
-    FAQ.find({ isPublished: true })
+    FAQ.find({ $or: [{ isPublished: true }, { isPublished: { $exists: false } }, { isPublished: null }] })
       .select("slug question answer updatedAt createdAt")
       .sort({ updatedAt: -1 })
       .lean(),
@@ -174,7 +174,7 @@ export const serveSitemapIndexXml = async (_req, res) => {
 
 export const serveFaqText = async (_req, res) => {
   try {
-    const faqs = await FAQ.find({ isPublished: true })
+    const faqs = await FAQ.find({ $or: [{ isPublished: true }, { isPublished: { $exists: false } }, { isPublished: null }] })
       .select("question answer slug updatedAt")
       .sort({ updatedAt: -1 })
       .lean();
@@ -256,6 +256,26 @@ export const serveLlmsFullMarkdown = async (_req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to generate llms-full.md",
+      error: error.message,
+    });
+  }
+};
+
+export const serveAllUrlsText = async (_req, res) => {
+  try {
+    const { blogs, faqs } = await fetchSeoData();
+    const lines = [
+      ...staticRoutes.map((route) => `${SITE_URL}${route.path}`),
+      ...blogs.map((blog) => `${SITE_URL}/blog/${blog.slug}`),
+      ...faqs.map((faq) => `${SITE_URL}/faqs/${faq.slug}`),
+    ];
+
+    res.set("Content-Type", "text/plain; charset=utf-8");
+    return res.status(200).send(lines.join("\n") + "\n");
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate all-urls.txt",
       error: error.message,
     });
   }

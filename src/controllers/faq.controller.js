@@ -62,7 +62,9 @@ export const getFAQs = async (req, res) => {
 
     if (category) filter.category = category;
     if (subCategory) filter.subCategory = subCategory;
-    if (includeUnpublished !== "true") filter.isPublished = true;
+    if (includeUnpublished !== "true") {
+      filter.$or = [{ isPublished: true }, { isPublished: { $exists: false } }, { isPublished: null }];
+    }
 
     const faqs = await FAQ.find(filter).sort({ updatedAt: -1, createdAt: -1 });
 
@@ -107,7 +109,7 @@ export const getFAQBySlug = async (req, res) => {
   try {
     const faq = await FAQ.findOne({
       slug: req.params.slug,
-      isPublished: true,
+      $or: [{ isPublished: true }, { isPublished: { $exists: false } }, { isPublished: null }],
     });
 
     if (!faq) {
