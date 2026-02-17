@@ -50,6 +50,7 @@ const staticRoutes = [
   { path: "/ArchitectSupport", changefreq: "monthly", priority: "0.8" },
   { path: "/specs", changefreq: "monthly", priority: "0.8" },
   { path: "/blog", changefreq: "daily", priority: "0.9" },
+  { path: "/sitemap", changefreq: "daily", priority: "0.8" },
   { path: "/faqs", changefreq: "weekly", priority: "0.9" },
   { path: "/about-us", changefreq: "monthly", priority: "0.7" },
   { path: "/contact-us", changefreq: "monthly", priority: "0.7" },
@@ -136,10 +137,6 @@ const buildSitemapIndexXml = (lastmod = new Date().toISOString()) =>
     "  </sitemap>",
     "  <sitemap>",
     `    <loc>${xmlEscape(`${SITE_URL}/page-sitemap.xml`)}</loc>`,
-    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
-    "  </sitemap>",
-    "  <sitemap>",
-    `    <loc>${xmlEscape(`${SITE_URL}/image-sitemap.xml`)}</loc>`,
     `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "  <sitemap>",
@@ -427,6 +424,7 @@ export const serveEntriesStructureJson = async (_req, res) => {
     const seoData = await fetchSeoData();
     const content = buildEntriesStructureJson(seoData);
     res.set("Content-Type", "application/json; charset=utf-8");
+    res.set("Cache-Control", "no-store, max-age=0");
     return res.status(200).send(content);
   } catch (error) {
     return res.status(500).json({
