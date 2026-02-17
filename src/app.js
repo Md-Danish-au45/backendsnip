@@ -10,7 +10,7 @@ import cron from 'node-cron';
 import { syncAllBlogsToSheet } from './utils/googleSheetHelper.js';
 import SyncLog from './models/SyncLogModel.js';
 import { startAutoFixService } from './scripts/autoFixBlogs.js';
-import { serveFaqText, serveLlmsText, serveSitemapXml } from './controllers/seoController.js';
+import { serveFaqText, serveLlmsFullMarkdown, serveLlmsText, serveSitemapIndexXml, serveSitemapXml } from './controllers/seoController.js';
 
 dotenv.config();
 
@@ -74,8 +74,10 @@ app.use('/api/external', externalApiLimiter);
 
 // Mount main routes
 app.get('/sitemap.xml', serveSitemapXml);
+app.get('/sitemap-index.xml', serveSitemapIndexXml);
 app.get('/faq.txt', serveFaqText);
 app.get('/llms.txt', serveLlmsText);
+app.get('/llms-full.md', serveLlmsFullMarkdown);
 app.use('/api', mainRouter);
 
 // Custom error handler

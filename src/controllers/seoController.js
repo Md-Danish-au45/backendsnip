@@ -26,12 +26,27 @@ const cleanText = (value = "") =>
 
 const staticRoutes = [
   { path: "/", changefreq: "daily", priority: "1.0" },
+  { path: "/IndustrialAutomation", changefreq: "weekly", priority: "0.9" },
+  { path: "/UtilityGrid", changefreq: "weekly", priority: "0.8" },
+  { path: "/SmartBuildings", changefreq: "weekly", priority: "0.8" },
+  { path: "/CloudIoTBridge", changefreq: "weekly", priority: "0.8" },
+  { path: "/UniversalProtocolService", changefreq: "weekly", priority: "0.9" },
+  { path: "/SmartLiving", changefreq: "weekly", priority: "0.8" },
+  { path: "/EdgeSecurity", changefreq: "weekly", priority: "0.8" },
+  { path: "/UniversalEngineNode", changefreq: "weekly", priority: "0.8" },
+  { path: "/ProtocolHealthAudit", changefreq: "weekly", priority: "0.8" },
+  { path: "/FireAlarm", changefreq: "weekly", priority: "0.8" },
+  { path: "/RCverification", changefreq: "weekly", priority: "0.8" },
+  { path: "/OurProtocolMission", changefreq: "monthly", priority: "0.8" },
+  { path: "/ArchitectSupport", changefreq: "monthly", priority: "0.8" },
+  { path: "/specs", changefreq: "monthly", priority: "0.8" },
   { path: "/blog", changefreq: "daily", priority: "0.9" },
   { path: "/faqs", changefreq: "weekly", priority: "0.9" },
   { path: "/about-us", changefreq: "monthly", priority: "0.7" },
   { path: "/contact-us", changefreq: "monthly", priority: "0.7" },
   { path: "/privacy-policy", changefreq: "yearly", priority: "0.4" },
   { path: "/terms-and-condition", changefreq: "yearly", priority: "0.4" },
+  { path: "/disclaimer", changefreq: "yearly", priority: "0.4" },
 ];
 
 const publishedBlogFilter = {
@@ -93,6 +108,25 @@ const buildSitemapXml = ({ blogs = [], faqs = [] }) => {
   );
 };
 
+const buildSitemapIndexXml = () =>
+  [
+    XML_HEADER,
+    '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    "  <sitemap>",
+    `    <loc>${xmlEscape(`${SITE_URL}/sitemap.xml`)}</loc>`,
+    "  </sitemap>",
+    "  <sitemap>",
+    `    <loc>${xmlEscape(`${SITE_URL}/blog-sitemap.xml`)}</loc>`,
+    "  </sitemap>",
+    "  <sitemap>",
+    `    <loc>${xmlEscape(`${SITE_URL}/faq-sitemap.xml`)}</loc>`,
+    "  </sitemap>",
+    "  <sitemap>",
+    `    <loc>${xmlEscape(`${SITE_URL}/page-sitemap.xml`)}</loc>`,
+    "  </sitemap>",
+    "</sitemapindex>",
+  ].join("\n");
+
 const fetchSeoData = async () => {
   const [blogs, faqs] = await Promise.all([
     Blog.find(publishedBlogFilter)
@@ -119,6 +153,20 @@ export const serveSitemapXml = async (_req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to generate sitemap",
+      error: error.message,
+    });
+  }
+};
+
+export const serveSitemapIndexXml = async (_req, res) => {
+  try {
+    const xml = buildSitemapIndexXml();
+    res.set("Content-Type", "application/xml; charset=utf-8");
+    return res.status(200).send(xml);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate sitemap index",
       error: error.message,
     });
   }
@@ -161,9 +209,7 @@ export const serveLlmsText = async (_req, res) => {
       `> Sitemap: ${SITE_URL}/sitemap.xml`,
       "",
       "## Primary Pages",
-      `- Home: ${SITE_URL}/`,
-      `- Blog Index: ${SITE_URL}/blog`,
-      `- FAQ Index: ${SITE_URL}/faqs`,
+      ...staticRoutes.map((route) => `- ${SITE_URL}${route.path}`),
       "",
       "## Latest Blog URLs",
       ...blogs.slice(0, 50).map((blog) => `- ${SITE_URL}/blog/${blog.slug}`),
@@ -184,3 +230,33 @@ export const serveLlmsText = async (_req, res) => {
   }
 };
 
+export const serveLlmsFullMarkdown = async (_req, res) => {
+  try {
+    const { blogs, faqs } = await fetchSeoData();
+    const lines = [
+      "# SNIPCOL Full AI Index",
+      "",
+      `Canonical: ${SITE_URL}/`,
+      `Sitemap: ${SITE_URL}/sitemap.xml`,
+      "",
+      "## Core Pages",
+      ...staticRoutes.map((route) => `- ${SITE_URL}${route.path}`),
+      "",
+      "## Blog URLs",
+      ...blogs.map((blog) => `- ${SITE_URL}/blog/${blog.slug}`),
+      "",
+      "## FAQ URLs",
+      ...faqs.map((faq) => `- ${SITE_URL}/faqs/${faq.slug}`),
+      "",
+    ];
+
+    res.set("Content-Type", "text/markdown; charset=utf-8");
+    return res.status(200).send(lines.join("\n"));
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate llms-full.md",
+      error: error.message,
+    });
+  }
+};
