@@ -1,15 +1,16 @@
 import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import Blog from "../models/BlogModel.js";
 import SyncLog from "../models/SyncLogModel.js";
 
-// Fix for ESM __dirname
-const __filename = new URL(import.meta.url).pathname;
+// Resolve ESM file paths in a cross-platform way (Windows + POSIX).
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Absolute path to service account key
-const credentialsPath = path.join(__dirname, "..", "..", "snipcol-fdfe91686062.json");
+const credentialsPath = path.resolve(__dirname, "..", "..", "snipcol-fdfe91686062.json");
 const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf-8"));
 
 // Google Sheets scopes
