@@ -1,11 +1,15 @@
 import express from "express";
 import {
   serveAllUrlsText,
+  serveBlogSitemapXml,
   serveEntriesStructureJson,
   serveFaqText,
+  serveFaqSitemapXml,
   serveImageSitemapXml,
   serveLlmsFullMarkdown,
   serveLlmsText,
+  servePageSitemapXml,
+  serveProductSitemapXml,
   serveSeoContentMarkdown,
   serveSitemapIndexXml,
   serveSitemapXml,
@@ -15,6 +19,10 @@ const router = express.Router();
 
 router.get("/sitemap.xml", serveSitemapXml);
 router.get("/sitemap-index.xml", serveSitemapIndexXml);
+router.get("/page-sitemap.xml", servePageSitemapXml);
+router.get("/blog-sitemap.xml", serveBlogSitemapXml);
+router.get("/faq-sitemap.xml", serveFaqSitemapXml);
+router.get("/product-sitemap.xml", serveProductSitemapXml);
 router.get("/image-sitemap.xml", serveImageSitemapXml);
 router.get("/faq.txt", serveFaqText);
 router.get("/llms.txt", serveLlmsText);

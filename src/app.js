@@ -12,11 +12,15 @@ import SyncLog from './models/SyncLogModel.js';
 import { startAutoFixService } from './scripts/autoFixBlogs.js';
 import {
   serveAllUrlsText,
+  serveBlogSitemapXml,
   serveEntriesStructureJson,
   serveFaqText,
+  serveFaqSitemapXml,
   serveImageSitemapXml,
   serveLlmsFullMarkdown,
   serveLlmsText,
+  servePageSitemapXml,
+  serveProductSitemapXml,
   serveSeoContentMarkdown,
   serveSitemapIndexXml,
   serveSitemapXml,
@@ -86,6 +90,10 @@ app.use('/api/external', externalApiLimiter);
 // Mount main routes
 app.get('/sitemap.xml', serveSitemapXml);
 app.get('/sitemap-index.xml', serveSitemapIndexXml);
+app.get('/page-sitemap.xml', servePageSitemapXml);
+app.get('/blog-sitemap.xml', serveBlogSitemapXml);
+app.get('/faq-sitemap.xml', serveFaqSitemapXml);
+app.get('/product-sitemap.xml', serveProductSitemapXml);
 app.get('/image-sitemap.xml', serveImageSitemapXml);
 app.get('/faq.txt', serveFaqText);
 app.get('/llms.txt', serveLlmsText);

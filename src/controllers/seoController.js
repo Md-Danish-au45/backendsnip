@@ -72,52 +72,51 @@ const buildUrlNode = ({ loc, lastmod, changefreq = "weekly", priority = "0.7" })
   "  </url>",
 ].join("\n");
 
-const buildSitemapXml = ({ blogs = [], faqs = [] }) => {
-  const nowIso = new Date().toISOString();
-  const nodes = [];
-
-  for (const route of staticRoutes) {
-    nodes.push(
-      buildUrlNode({
-        loc: `${SITE_URL}${route.path}`,
-        lastmod: nowIso,
-        changefreq: route.changefreq,
-        priority: route.priority,
-      })
-    );
-  }
-
-  for (const blog of blogs) {
-    if (!blog.slug) continue;
-
-    nodes.push(
-      buildUrlNode({
-        loc: `${SITE_URL}/blog/${blog.slug}`,
-        lastmod: blog.updatedAt || blog.publishedAt || blog.createdAt || nowIso,
-        changefreq: "weekly",
-        priority: "0.8",
-      })
-    );
-  }
-
-  for (const faq of faqs) {
-    const slug = faq.slug || toSeoSlug(faq.question);
-    if (!slug) continue;
-
-    nodes.push(
-      buildUrlNode({
-        loc: `${SITE_URL}/faqs/${slug}`,
-        lastmod: faq.updatedAt || faq.createdAt || nowIso,
-        changefreq: "monthly",
-        priority: "0.7",
-      })
-    );
-  }
-
-  return [XML_HEADER, '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', ...nodes, "</urlset>"].join(
+const buildSitemapXmlFromEntries = (entries = []) =>
+  [XML_HEADER, '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', ...entries.map(buildUrlNode), "</urlset>"].join(
     "\n"
   );
+
+const buildPageEntries = (lastmod = new Date().toISOString()) =>
+  staticRoutes.map((route) => ({
+    loc: `${SITE_URL}${route.path}`,
+    lastmod,
+    changefreq: route.changefreq,
+    priority: route.priority,
+  }));
+
+const buildBlogEntries = (blogs = [], fallbackLastmod = new Date().toISOString()) =>
+  blogs
+    .filter((blog) => blog?.slug)
+    .map((blog) => ({
+      loc: `${SITE_URL}/blog/${blog.slug}`,
+      lastmod: blog.updatedAt || blog.publishedAt || blog.createdAt || fallbackLastmod,
+      changefreq: "weekly",
+      priority: "0.8",
+    }));
+
+const buildFaqEntries = (faqs = [], fallbackLastmod = new Date().toISOString()) =>
+  faqs
+    .map((faq) => {
+      const slug = faq?.slug || toSeoSlug(faq?.question);
+      if (!slug) return null;
+      return {
+        loc: `${SITE_URL}/faqs/${slug}`,
+        lastmod: faq.updatedAt || faq.createdAt || fallbackLastmod,
+        changefreq: "monthly",
+        priority: "0.7",
+      };
+    })
+    .filter(Boolean);
+
+const buildSitemapXml = ({ blogs = [], faqs = [] }) => {
+  const nowIso = new Date().toISOString();
+  const entries = [...buildPageEntries(nowIso), ...buildBlogEntries(blogs, nowIso), ...buildFaqEntries(faqs, nowIso)];
+  return buildSitemapXmlFromEntries(entries);
 };
+
+const buildEmptySitemapXml = () =>
+  [XML_HEADER, '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', "</urlset>"].join("\n");
 
 const buildSitemapIndexXml = (lastmod = new Date().toISOString()) =>
   [
@@ -133,6 +132,10 @@ const buildSitemapIndexXml = (lastmod = new Date().toISOString()) =>
     "  </sitemap>",
     "  <sitemap>",
     `    <loc>${xmlEscape(`${SITE_URL}/faq-sitemap.xml`)}</loc>`,
+    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
+    "  </sitemap>",
+    "  <sitemap>",
+    `    <loc>${xmlEscape(`${SITE_URL}/image-sitemap.xml`)}</loc>`,
     `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "  <sitemap>",
@@ -261,13 +264,17 @@ const buildSeoContentMarkdown = ({ blogs = [], faqs = [] }) => {
   return lines.join("\n");
 };
 
+const setXmlResponseHeaders = (res) => {
+  res.set("Content-Type", "application/xml; charset=utf-8");
+  res.set("Cache-Control", "public, max-age=900, s-maxage=900");
+};
+
 export const serveSitemapXml = async (_req, res) => {
   try {
     const seoData = await fetchSeoData();
     const xml = buildSitemapXml(seoData);
 
-    res.set("Content-Type", "application/xml; charset=utf-8");
-    res.set("Cache-Control", "public, max-age=900, s-maxage=900");
+    setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
     return res.status(500).json({
@@ -278,11 +285,68 @@ export const serveSitemapXml = async (_req, res) => {
   }
 };
 
+export const servePageSitemapXml = async (_req, res) => {
+  try {
+    const xml = buildSitemapXmlFromEntries(buildPageEntries(new Date().toISOString()));
+    setXmlResponseHeaders(res);
+    return res.status(200).send(xml);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate page sitemap",
+      error: error.message,
+    });
+  }
+};
+
+export const serveBlogSitemapXml = async (_req, res) => {
+  try {
+    const { blogs } = await fetchSeoData();
+    const xml = buildSitemapXmlFromEntries(buildBlogEntries(blogs, new Date().toISOString()));
+    setXmlResponseHeaders(res);
+    return res.status(200).send(xml);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate blog sitemap",
+      error: error.message,
+    });
+  }
+};
+
+export const serveFaqSitemapXml = async (_req, res) => {
+  try {
+    const { faqs } = await fetchSeoData();
+    const xml = buildSitemapXmlFromEntries(buildFaqEntries(faqs, new Date().toISOString()));
+    setXmlResponseHeaders(res);
+    return res.status(200).send(xml);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate faq sitemap",
+      error: error.message,
+    });
+  }
+};
+
+export const serveProductSitemapXml = async (_req, res) => {
+  try {
+    const xml = buildEmptySitemapXml();
+    setXmlResponseHeaders(res);
+    return res.status(200).send(xml);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate product sitemap",
+      error: error.message,
+    });
+  }
+};
+
 export const serveSitemapIndexXml = async (_req, res) => {
   try {
     const xml = buildSitemapIndexXml(new Date().toISOString());
-    res.set("Content-Type", "application/xml; charset=utf-8");
-    res.set("Cache-Control", "public, max-age=900, s-maxage=900");
+    setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
     return res.status(500).json({
@@ -297,8 +361,7 @@ export const serveImageSitemapXml = async (_req, res) => {
   try {
     const { blogs } = await fetchSeoData();
     const xml = buildImageSitemapXml(blogs);
-    res.set("Content-Type", "application/xml; charset=utf-8");
-    res.set("Cache-Control", "public, max-age=900, s-maxage=900");
+    setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
     return res.status(500).json({
