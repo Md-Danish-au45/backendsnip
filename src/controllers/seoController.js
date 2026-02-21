@@ -2,6 +2,8 @@ import Blog from "../models/BlogModel.js";
 import FAQ from "../models/faq.model.js";
 
 const SITE_URL = (process.env.SITE_URL || "https://www.snipcol.com").replace(/\/+$/, "");
+const BLOGS_PER_PAGE = 9;
+const FAQS_PER_PAGE = 12;
 
 const XML_HEADER = '<?xml version="1.0" encoding="UTF-8"?>';
 
@@ -16,6 +18,15 @@ const xmlEscape = (value = "") =>
 const toIsoDate = (dateLike) => {
   const date = new Date(dateLike || Date.now());
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+};
+
+const getLatestDateFromItems = (items = [], pickDate, fallback = new Date().toISOString()) => {
+  let latest = 0;
+  for (const item of items) {
+    const candidate = new Date(pickDate(item) || 0).getTime();
+    if (!Number.isNaN(candidate) && candidate > latest) latest = candidate;
+  }
+  return latest ? new Date(latest).toISOString() : fallback;
 };
 
 const cleanText = (value = "") =>
@@ -77,13 +88,36 @@ const buildSitemapXmlFromEntries = (entries = []) =>
     "\n"
   );
 
-const buildPageEntries = (lastmod = new Date().toISOString()) =>
+const buildStaticPageEntries = (lastmod = new Date().toISOString()) =>
   staticRoutes.map((route) => ({
     loc: `${SITE_URL}${route.path}`,
     lastmod,
     changefreq: route.changefreq,
     priority: route.priority,
   }));
+
+const buildBlogPaginationEntries = (blogs = [], fallbackLastmod = new Date().toISOString()) => {
+  const totalPages = Math.ceil(blogs.length / BLOGS_PER_PAGE);
+  if (totalPages <= 1) return [];
+
+  const entries = [];
+  for (let page = 2; page <= totalPages; page += 1) {
+    const start = (page - 1) * BLOGS_PER_PAGE;
+    const pageBlogs = blogs.slice(start, start + BLOGS_PER_PAGE);
+    entries.push({
+      loc: `${SITE_URL}/blog/page/${page}`,
+      lastmod: getLatestDateFromItems(
+        pageBlogs,
+        (blog) => blog?.updatedAt || blog?.publishedAt || blog?.createdAt,
+        fallbackLastmod
+      ),
+      changefreq: "daily",
+      priority: "0.75",
+    });
+  }
+
+  return entries;
+};
 
 const buildBlogEntries = (blogs = [], fallbackLastmod = new Date().toISOString()) =>
   blogs
@@ -94,6 +128,25 @@ const buildBlogEntries = (blogs = [], fallbackLastmod = new Date().toISOString()
       changefreq: "weekly",
       priority: "0.8",
     }));
+
+const buildFaqPaginationEntries = (faqs = [], fallbackLastmod = new Date().toISOString()) => {
+  const totalPages = Math.ceil(faqs.length / FAQS_PER_PAGE);
+  if (totalPages <= 1) return [];
+
+  const entries = [];
+  for (let page = 2; page <= totalPages; page += 1) {
+    const start = (page - 1) * FAQS_PER_PAGE;
+    const pageFaqs = faqs.slice(start, start + FAQS_PER_PAGE);
+    entries.push({
+      loc: `${SITE_URL}/faqs/page/${page}`,
+      lastmod: getLatestDateFromItems(pageFaqs, (faq) => faq?.updatedAt || faq?.createdAt, fallbackLastmod),
+      changefreq: "weekly",
+      priority: "0.75",
+    });
+  }
+
+  return entries;
+};
 
 const buildFaqEntries = (faqs = [], fallbackLastmod = new Date().toISOString()) =>
   faqs
@@ -109,9 +162,19 @@ const buildFaqEntries = (faqs = [], fallbackLastmod = new Date().toISOString()) 
     })
     .filter(Boolean);
 
+const buildPageEntries = ({ blogs = [], faqs = [], fallbackLastmod = new Date().toISOString() }) => [
+  ...buildStaticPageEntries(fallbackLastmod),
+  ...buildBlogPaginationEntries(blogs, fallbackLastmod),
+  ...buildFaqPaginationEntries(faqs, fallbackLastmod),
+];
+
 const buildSitemapXml = ({ blogs = [], faqs = [] }) => {
   const nowIso = new Date().toISOString();
-  const entries = [...buildPageEntries(nowIso), ...buildBlogEntries(blogs, nowIso), ...buildFaqEntries(faqs, nowIso)];
+  const entries = [
+    ...buildPageEntries({ blogs, faqs, fallbackLastmod: nowIso }),
+    ...buildBlogEntries(blogs, nowIso),
+    ...buildFaqEntries(faqs, nowIso),
+  ];
   return buildSitemapXmlFromEntries(entries);
 };
 
@@ -199,46 +262,53 @@ const fetchSeoData = async () => {
   return { blogs, faqs };
 };
 
-const buildEntriesStructureJson = ({ blogs = [], faqs = [] }) =>
-  JSON.stringify(
-    {
-      site: SITE_URL,
-      generatedAt: new Date().toISOString(),
-      counts: {
-        pages: staticRoutes.length,
-        blogs: blogs.length,
-        faqs: faqs.length,
-        total: staticRoutes.length + blogs.length + faqs.length,
+const buildEntriesStructureJson = ({ blogs = [], faqs = [] }) => {
+  const generatedAt = new Date().toISOString();
+  const pageEntries = buildPageEntries({ blogs, faqs, fallbackLastmod: generatedAt });
+
+  return (
+    JSON.stringify(
+      {
+        site: SITE_URL,
+        generatedAt,
+        counts: {
+          pages: pageEntries.length,
+          blogs: blogs.length,
+          faqs: faqs.length,
+          total: pageEntries.length + blogs.length + faqs.length,
+        },
+        entries: {
+          pages: pageEntries.map((entry) => ({
+            type: "page",
+            url: entry.loc,
+            changefreq: entry.changefreq,
+            priority: entry.priority,
+            lastmod: toIsoDate(entry.lastmod),
+          })),
+          blogs: blogs.map((blog) => ({
+            type: "blog",
+            slug: blog.slug,
+            url: `${SITE_URL}/blog/${blog.slug}`,
+            title: cleanText(blog.title || ""),
+            updatedAt: toIsoDate(blog.updatedAt || blog.publishedAt || blog.createdAt),
+          })),
+          faqs: faqs.map((faq) => {
+            const slug = faq.slug || toSeoSlug(faq.question);
+            return {
+              type: "faq",
+              slug,
+              url: `${SITE_URL}/faqs/${slug}`,
+              question: cleanText(faq.question || ""),
+              updatedAt: toIsoDate(faq.updatedAt || faq.createdAt),
+            };
+          }),
+        },
       },
-      entries: {
-        pages: staticRoutes.map((route) => ({
-          type: "page",
-          url: `${SITE_URL}${route.path}`,
-          changefreq: route.changefreq,
-          priority: route.priority,
-        })),
-        blogs: blogs.map((blog) => ({
-          type: "blog",
-          slug: blog.slug,
-          url: `${SITE_URL}/blog/${blog.slug}`,
-          title: cleanText(blog.title || ""),
-          updatedAt: toIsoDate(blog.updatedAt || blog.publishedAt || blog.createdAt),
-        })),
-        faqs: faqs.map((faq) => {
-          const slug = faq.slug || toSeoSlug(faq.question);
-          return {
-            type: "faq",
-            slug,
-            url: `${SITE_URL}/faqs/${slug}`,
-            question: cleanText(faq.question || ""),
-            updatedAt: toIsoDate(faq.updatedAt || faq.createdAt),
-          };
-        }),
-      },
-    },
-    null,
-    2
-  ) + "\n";
+      null,
+      2
+    ) + "\n"
+  );
+};
 
 const buildSeoContentMarkdown = ({ blogs = [], faqs = [] }) => {
   const lines = [
@@ -287,7 +357,14 @@ export const serveSitemapXml = async (_req, res) => {
 
 export const servePageSitemapXml = async (_req, res) => {
   try {
-    const xml = buildSitemapXmlFromEntries(buildPageEntries(new Date().toISOString()));
+    const seoData = await fetchSeoData();
+    const xml = buildSitemapXmlFromEntries(
+      buildPageEntries({
+        blogs: seoData.blogs,
+        faqs: seoData.faqs,
+        fallbackLastmod: new Date().toISOString(),
+      })
+    );
     setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
@@ -302,7 +379,8 @@ export const servePageSitemapXml = async (_req, res) => {
 export const serveBlogSitemapXml = async (_req, res) => {
   try {
     const { blogs } = await fetchSeoData();
-    const xml = buildSitemapXmlFromEntries(buildBlogEntries(blogs, new Date().toISOString()));
+    const nowIso = new Date().toISOString();
+    const xml = buildSitemapXmlFromEntries([...buildBlogPaginationEntries(blogs, nowIso), ...buildBlogEntries(blogs, nowIso)]);
     setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
@@ -317,7 +395,8 @@ export const serveBlogSitemapXml = async (_req, res) => {
 export const serveFaqSitemapXml = async (_req, res) => {
   try {
     const { faqs } = await fetchSeoData();
-    const xml = buildSitemapXmlFromEntries(buildFaqEntries(faqs, new Date().toISOString()));
+    const nowIso = new Date().toISOString();
+    const xml = buildSitemapXmlFromEntries([...buildFaqPaginationEntries(faqs, nowIso), ...buildFaqEntries(faqs, nowIso)]);
     setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
@@ -403,6 +482,7 @@ export const serveFaqText = async (_req, res) => {
 export const serveLlmsText = async (_req, res) => {
   try {
     const { blogs, faqs } = await fetchSeoData();
+    const pageEntries = buildPageEntries({ blogs, faqs, fallbackLastmod: new Date().toISOString() });
     const lines = [
       "# SNIPCOL",
       "",
@@ -410,7 +490,7 @@ export const serveLlmsText = async (_req, res) => {
       `> Sitemap: ${SITE_URL}/sitemap.xml`,
       "",
       "## Primary Pages",
-      ...staticRoutes.map((route) => `- ${SITE_URL}${route.path}`),
+      ...pageEntries.map((entry) => `- ${entry.loc}`),
       "",
       "## Latest Blog URLs",
       ...blogs.slice(0, 50).map((blog) => `- ${SITE_URL}/blog/${blog.slug}`),
@@ -434,6 +514,7 @@ export const serveLlmsText = async (_req, res) => {
 export const serveLlmsFullMarkdown = async (_req, res) => {
   try {
     const { blogs, faqs } = await fetchSeoData();
+    const pageEntries = buildPageEntries({ blogs, faqs, fallbackLastmod: new Date().toISOString() });
     const lines = [
       "# SNIPCOL Full AI Index",
       "",
@@ -441,7 +522,7 @@ export const serveLlmsFullMarkdown = async (_req, res) => {
       `Sitemap: ${SITE_URL}/sitemap.xml`,
       "",
       "## Core Pages",
-      ...staticRoutes.map((route) => `- ${SITE_URL}${route.path}`),
+      ...pageEntries.map((entry) => `- ${entry.loc}`),
       "",
       "## Blog URLs",
       ...blogs.map((blog) => `- ${SITE_URL}/blog/${blog.slug}`),
@@ -465,8 +546,9 @@ export const serveLlmsFullMarkdown = async (_req, res) => {
 export const serveAllUrlsText = async (_req, res) => {
   try {
     const { blogs, faqs } = await fetchSeoData();
+    const pageEntries = buildPageEntries({ blogs, faqs, fallbackLastmod: new Date().toISOString() });
     const lines = [
-      ...staticRoutes.map((route) => `${SITE_URL}${route.path}`),
+      ...pageEntries.map((entry) => entry.loc),
       ...blogs.map((blog) => `${SITE_URL}/blog/${blog.slug}`),
       ...faqs.map((faq) => `${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)}`),
     ];
