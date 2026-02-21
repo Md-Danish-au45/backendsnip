@@ -33,6 +33,20 @@ dotenv.config();
 connectDB();
 
 const app = express();
+const cronAuthSecret = process.env.CRON_SECRET || process.env.SEO_CRON_SECRET || '';
+
+const isAuthorizedCronCall = (req) => {
+  const authHeader = req.get('authorization');
+  const userAgent = String(req.get('user-agent') || '').toLowerCase();
+  const vercelCronHeader = String(req.get('x-vercel-cron') || '').toLowerCase();
+  const isVercelCronRequest = userAgent.includes('vercel-cron/1.0') || vercelCronHeader === '1';
+
+  if (cronAuthSecret) {
+    return authHeader === `Bearer ${cronAuthSecret}` || isVercelCronRequest;
+  }
+
+  return isVercelCronRequest;
+};
 
 // Body parser
 app.use(express.json({ limit: '50mb' }));
@@ -101,6 +115,22 @@ app.get('/llms-full.md', serveLlmsFullMarkdown);
 app.get('/all-urls.txt', serveAllUrlsText);
 app.get('/entries-structure.json', serveEntriesStructureJson);
 app.get('/seo-content.md', serveSeoContentMarkdown);
+app.get('/internal/cron/seo-regenerate', async (req, res) => {
+  if (!isAuthorizedCronCall(req)) {
+    return res.status(401).json({ success: false, message: 'Unauthorized cron request' });
+  }
+
+  try {
+    const result = await regenerateSeoAssetsNow('vercel-cron', console);
+    return res.status(200).json({ success: true, reason: 'vercel-cron', ...result });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to regenerate SEO assets',
+      error: error.message,
+    });
+  }
+});
 app.use('/api', mainRouter);
 
 // Generate static SEO assets once on boot (if output path exists/enabled).

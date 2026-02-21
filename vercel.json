@@ -8,6 +8,12 @@
       "use": "@vercel/node"
     }
   ],
+  "crons": [
+    {
+      "path": "/internal/cron/seo-regenerate",
+      "schedule": "0 2 * * *"
+    }
+  ],
   "routes": [
     {
       "src": "/(.*)",
