@@ -10,6 +10,7 @@ import {
   serveLlmsText,
   servePageSitemapXml,
   serveProductSitemapXml,
+  regenerateSeoAssets,
   serveSeoContentMarkdown,
   serveSitemapIndexXml,
   serveSitemapXml,
@@ -30,5 +31,6 @@ router.get("/llms-full.md", serveLlmsFullMarkdown);
 router.get("/all-urls.txt", serveAllUrlsText);
 router.get("/entries-structure.json", serveEntriesStructureJson);
 router.get("/seo-content.md", serveSeoContentMarkdown);
+router.post("/regenerate", regenerateSeoAssets);
 
 export default router;

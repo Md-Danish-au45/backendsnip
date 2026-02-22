@@ -1,5 +1,6 @@
 import Blog from "../models/BlogModel.js";
 import FAQ from "../models/faq.model.js";
+import { regenerateSeoAssetsNow } from "../utils/seoAssetsAutoGenerator.js";
 
 const SITE_URL = (process.env.SITE_URL || "https://www.snipcol.com").replace(/\/+$/, "");
 const BLOGS_PER_PAGE = 9;
@@ -54,9 +55,13 @@ const staticRoutes = [
   { path: "/SmartLiving", changefreq: "weekly", priority: "0.8" },
   { path: "/EdgeSecurity", changefreq: "weekly", priority: "0.8" },
   { path: "/UniversalEngineNode", changefreq: "weekly", priority: "0.8" },
+  { path: "/ITOTIntegration", changefreq: "weekly", priority: "0.8" },
   { path: "/ProtocolHealthAudit", changefreq: "weekly", priority: "0.8" },
   { path: "/FireAlarm", changefreq: "weekly", priority: "0.8" },
   { path: "/RCverification", changefreq: "weekly", priority: "0.8" },
+  { path: "/how-to-get-verify", changefreq: "monthly", priority: "0.7" },
+  { path: "/case-study", changefreq: "monthly", priority: "0.7" },
+  { path: "/videos/complete-verification-platform-demo", changefreq: "monthly", priority: "0.7" },
   { path: "/OurProtocolMission", changefreq: "monthly", priority: "0.8" },
   { path: "/ArchitectSupport", changefreq: "monthly", priority: "0.8" },
   { path: "/specs", changefreq: "monthly", priority: "0.8" },
@@ -590,6 +595,26 @@ export const serveSeoContentMarkdown = async (_req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to generate seo-content.md",
+      error: error.message,
+    });
+  }
+};
+
+export const regenerateSeoAssets = async (req, res) => {
+  try {
+    const reason = String(req?.body?.reason || "manual-ui").trim() || "manual-ui";
+    const result = await regenerateSeoAssetsNow(reason, console);
+
+    return res.status(200).json({
+      success: true,
+      reason,
+      generatedAt: new Date().toISOString(),
+      ...result,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to regenerate SEO assets",
       error: error.message,
     });
   }
