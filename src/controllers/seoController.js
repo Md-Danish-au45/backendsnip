@@ -1,5 +1,6 @@
 import Blog from "../models/BlogModel.js";
 import FAQ from "../models/faq.model.js";
+import Service from "../models/Service.js";
 import { regenerateSeoAssetsNow } from "../utils/seoAssetsAutoGenerator.js";
 
 const SITE_URL = (process.env.SITE_URL || "https://www.snipcol.com").replace(/\/+$/, "");
@@ -30,23 +31,35 @@ const getLatestDateFromItems = (items = [], pickDate, fallback = new Date().toIS
   return latest ? new Date(latest).toISOString() : fallback;
 };
 
+const uniqueEntriesByLoc = (entries = []) =>
+  Array.from(
+    new Map(
+      entries
+        .filter((entry) => entry?.loc)
+        .map((entry) => [entry.loc, entry])
+    ).values()
+  );
+
 const cleanText = (value = "") =>
   String(value)
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-const toSeoSlug = (value = "") =>
+const toPathSlug = (value = "", fallback = "item") =>
   String(value)
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "faq";
+    .replace(/^-|-$/g, "") || fallback;
+
+const toSeoSlug = (value = "") => toPathSlug(value, "faq");
 
 const staticRoutes = [
   { path: "/", changefreq: "daily", priority: "1.0" },
+  { path: "/amp.html", changefreq: "monthly", priority: "0.6" },
   { path: "/IndustrialAutomation", changefreq: "weekly", priority: "0.9" },
   { path: "/UtilityGrid", changefreq: "weekly", priority: "0.8" },
   { path: "/SmartBuildings", changefreq: "weekly", priority: "0.8" },
@@ -154,18 +167,36 @@ const buildFaqPaginationEntries = (faqs = [], fallbackLastmod = new Date().toISO
 };
 
 const buildFaqEntries = (faqs = [], fallbackLastmod = new Date().toISOString()) =>
-  faqs
-    .map((faq) => {
-      const slug = faq?.slug || toSeoSlug(faq?.question);
-      if (!slug) return null;
-      return {
-        loc: `${SITE_URL}/faqs/${slug}`,
-        lastmod: faq.updatedAt || faq.createdAt || fallbackLastmod,
-        changefreq: "monthly",
-        priority: "0.7",
-      };
-    })
-    .filter(Boolean);
+  uniqueEntriesByLoc(
+    faqs
+      .map((faq) => {
+        const slug = faq?.slug || toSeoSlug(faq?.question);
+        if (!slug) return null;
+        return {
+          loc: `${SITE_URL}/faqs/${slug}`,
+          lastmod: faq.updatedAt || faq.createdAt || fallbackLastmod,
+          changefreq: "monthly",
+          priority: "0.7",
+        };
+      })
+      .filter(Boolean)
+  );
+
+const buildProductEntries = (products = [], fallbackLastmod = new Date().toISOString()) =>
+  uniqueEntriesByLoc(
+    products
+      .map((product) => {
+        const slug = toPathSlug(product?.name || product?.subcategory || "", "product");
+        if (!slug) return null;
+        return {
+          loc: `${SITE_URL}/product/${slug}`,
+          lastmod: product.updatedAt || product.createdAt || fallbackLastmod,
+          changefreq: "weekly",
+          priority: "0.7",
+        };
+      })
+      .filter(Boolean)
+  );
 
 const buildPageEntries = ({ blogs = [], faqs = [], fallbackLastmod = new Date().toISOString() }) => [
   ...buildStaticPageEntries(fallbackLastmod),
@@ -173,13 +204,14 @@ const buildPageEntries = ({ blogs = [], faqs = [], fallbackLastmod = new Date().
   ...buildFaqPaginationEntries(faqs, fallbackLastmod),
 ];
 
-const buildSitemapXml = ({ blogs = [], faqs = [] }) => {
+const buildSitemapXml = ({ blogs = [], faqs = [], products = [] }) => {
   const nowIso = new Date().toISOString();
-  const entries = [
+  const entries = uniqueEntriesByLoc([
     ...buildPageEntries({ blogs, faqs, fallbackLastmod: nowIso }),
     ...buildBlogEntries(blogs, nowIso),
     ...buildFaqEntries(faqs, nowIso),
-  ];
+    ...buildProductEntries(products, nowIso),
+  ]);
   return buildSitemapXmlFromEntries(entries);
 };
 
@@ -253,7 +285,7 @@ const buildImageSitemapXml = (blogs = []) => {
 };
 
 const fetchSeoData = async () => {
-  const [blogs, faqs] = await Promise.all([
+  const [blogs, faqs, products] = await Promise.all([
     Blog.find(publishedBlogFilter)
       .select("slug title excerpt metaDescription featuredImage publishedAt updatedAt createdAt")
       .sort({ updatedAt: -1 })
@@ -262,12 +294,16 @@ const fetchSeoData = async () => {
       .select("slug question answer updatedAt createdAt")
       .sort({ updatedAt: -1 })
       .lean(),
+    Service.find({ is_active: true })
+      .select("name subcategory updatedAt createdAt")
+      .sort({ updatedAt: -1 })
+      .lean(),
   ]);
 
-  return { blogs, faqs };
+  return { blogs, faqs, products };
 };
 
-const buildEntriesStructureJson = ({ blogs = [], faqs = [] }) => {
+const buildEntriesStructureJson = ({ blogs = [], faqs = [], products = [] }) => {
   const generatedAt = new Date().toISOString();
   const pageEntries = buildPageEntries({ blogs, faqs, fallbackLastmod: generatedAt });
 
@@ -280,7 +316,8 @@ const buildEntriesStructureJson = ({ blogs = [], faqs = [] }) => {
           pages: pageEntries.length,
           blogs: blogs.length,
           faqs: faqs.length,
-          total: pageEntries.length + blogs.length + faqs.length,
+          products: products.length,
+          total: pageEntries.length + blogs.length + faqs.length + products.length,
         },
         entries: {
           pages: pageEntries.map((entry) => ({
@@ -307,6 +344,16 @@ const buildEntriesStructureJson = ({ blogs = [], faqs = [] }) => {
               updatedAt: toIsoDate(faq.updatedAt || faq.createdAt),
             };
           }),
+          products: products.map((product) => {
+            const slug = toPathSlug(product?.name || product?.subcategory || "", "product");
+            return {
+              type: "product",
+              slug,
+              name: cleanText(product?.name || ""),
+              url: `${SITE_URL}/product/${slug}`,
+              updatedAt: toIsoDate(product?.updatedAt || product?.createdAt),
+            };
+          }),
         },
       },
       null,
@@ -315,7 +362,7 @@ const buildEntriesStructureJson = ({ blogs = [], faqs = [] }) => {
   );
 };
 
-const buildSeoContentMarkdown = ({ blogs = [], faqs = [] }) => {
+const buildSeoContentMarkdown = ({ blogs = [], faqs = [], products = [] }) => {
   const lines = [
     "# SNIPCOL SEO Content Hub",
     "",
@@ -334,6 +381,12 @@ const buildSeoContentMarkdown = ({ blogs = [], faqs = [] }) => {
     "",
     "## Latest FAQ Highlights",
     ...faqs.slice(0, 200).map((faq) => `- ${cleanText(faq.question || "")} (${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)})`),
+    "",
+    "## Product URLs",
+    ...products.slice(0, 200).map((product) => {
+      const slug = toPathSlug(product?.name || product?.subcategory || "", "product");
+      return `- ${cleanText(product?.name || "Product")} (${SITE_URL}/product/${slug})`;
+    }),
     "",
   ];
   return lines.join("\n");
@@ -385,7 +438,10 @@ export const serveBlogSitemapXml = async (_req, res) => {
   try {
     const { blogs } = await fetchSeoData();
     const nowIso = new Date().toISOString();
-    const xml = buildSitemapXmlFromEntries([...buildBlogPaginationEntries(blogs, nowIso), ...buildBlogEntries(blogs, nowIso)]);
+    const xml = buildSitemapXmlFromEntries(uniqueEntriesByLoc([
+      ...buildBlogPaginationEntries(blogs, nowIso),
+      ...buildBlogEntries(blogs, nowIso),
+    ]));
     setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
@@ -401,7 +457,7 @@ export const serveFaqSitemapXml = async (_req, res) => {
   try {
     const { faqs } = await fetchSeoData();
     const nowIso = new Date().toISOString();
-    const xml = buildSitemapXmlFromEntries([...buildFaqPaginationEntries(faqs, nowIso), ...buildFaqEntries(faqs, nowIso)]);
+    const xml = buildSitemapXmlFromEntries(uniqueEntriesByLoc([...buildFaqPaginationEntries(faqs, nowIso), ...buildFaqEntries(faqs, nowIso)]));
     setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
@@ -415,7 +471,9 @@ export const serveFaqSitemapXml = async (_req, res) => {
 
 export const serveProductSitemapXml = async (_req, res) => {
   try {
-    const xml = buildEmptySitemapXml();
+    const { products } = await fetchSeoData();
+    const nowIso = new Date().toISOString();
+    const xml = buildSitemapXmlFromEntries(buildProductEntries(products, nowIso));
     setXmlResponseHeaders(res);
     return res.status(200).send(xml);
   } catch (error) {
@@ -486,7 +544,7 @@ export const serveFaqText = async (_req, res) => {
 
 export const serveLlmsText = async (_req, res) => {
   try {
-    const { blogs, faqs } = await fetchSeoData();
+    const { blogs, faqs, products } = await fetchSeoData();
     const pageEntries = buildPageEntries({ blogs, faqs, fallbackLastmod: new Date().toISOString() });
     const lines = [
       "# SNIPCOL",
@@ -503,6 +561,12 @@ export const serveLlmsText = async (_req, res) => {
       "## Latest FAQ URLs",
       ...faqs.slice(0, 100).map((faq) => `- ${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)}`),
       "",
+      "## Product URLs",
+      ...products.slice(0, 100).map((product) => {
+        const slug = toPathSlug(product?.name || product?.subcategory || "", "product");
+        return `- ${SITE_URL}/product/${slug}`;
+      }),
+      "",
     ];
 
     res.set("Content-Type", "text/plain; charset=utf-8");
@@ -518,7 +582,7 @@ export const serveLlmsText = async (_req, res) => {
 
 export const serveLlmsFullMarkdown = async (_req, res) => {
   try {
-    const { blogs, faqs } = await fetchSeoData();
+    const { blogs, faqs, products } = await fetchSeoData();
     const pageEntries = buildPageEntries({ blogs, faqs, fallbackLastmod: new Date().toISOString() });
     const lines = [
       "# SNIPCOL Full AI Index",
@@ -535,6 +599,12 @@ export const serveLlmsFullMarkdown = async (_req, res) => {
       "## FAQ URLs",
       ...faqs.map((faq) => `- ${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)}`),
       "",
+      "## Product URLs",
+      ...products.map((product) => {
+        const slug = toPathSlug(product?.name || product?.subcategory || "", "product");
+        return `- ${SITE_URL}/product/${slug}`;
+      }),
+      "",
     ];
 
     res.set("Content-Type", "text/markdown; charset=utf-8");
@@ -550,13 +620,17 @@ export const serveLlmsFullMarkdown = async (_req, res) => {
 
 export const serveAllUrlsText = async (_req, res) => {
   try {
-    const { blogs, faqs } = await fetchSeoData();
+    const { blogs, faqs, products } = await fetchSeoData();
     const pageEntries = buildPageEntries({ blogs, faqs, fallbackLastmod: new Date().toISOString() });
-    const lines = [
-      ...pageEntries.map((entry) => entry.loc),
-      ...blogs.map((blog) => `${SITE_URL}/blog/${blog.slug}`),
-      ...faqs.map((faq) => `${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)}`),
-    ];
+    const lines = uniqueEntriesByLoc([
+      ...pageEntries.map((entry) => ({ loc: entry.loc })),
+      ...blogs.map((blog) => ({ loc: `${SITE_URL}/blog/${blog.slug}` })),
+      ...faqs.map((faq) => ({ loc: `${SITE_URL}/faqs/${faq.slug || toSeoSlug(faq.question)}` })),
+      ...products.map((product) => {
+        const slug = toPathSlug(product?.name || product?.subcategory || "", "product");
+        return { loc: `${SITE_URL}/product/${slug}` };
+      }),
+    ]).map((entry) => entry.loc);
 
     res.set("Content-Type", "text/plain; charset=utf-8");
     return res.status(200).send(lines.join("\n") + "\n");
@@ -602,7 +676,8 @@ export const serveSeoContentMarkdown = async (_req, res) => {
 
 export const regenerateSeoAssets = async (req, res) => {
   try {
-    const reason = String(req?.body?.reason || "manual-ui").trim() || "manual-ui";
+    const rawReason = String(req?.body?.reason || "manual-ui").trim() || "manual-ui";
+    const reason = rawReason.replace(/[^a-zA-Z0-9._:-]/g, "").slice(0, 64) || "manual-ui";
     const result = await regenerateSeoAssetsNow(reason, console);
 
     return res.status(200).json({

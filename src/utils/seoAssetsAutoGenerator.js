@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Blog from "../models/BlogModel.js";
 import FAQ from "../models/faq.model.js";
+import Service from "../models/Service.js";
 
 const SITE_URL = (process.env.SITE_URL || "https://www.snipcol.com").replace(/\/+$/, "");
 const BLOGS_PER_PAGE = 9;
@@ -12,11 +13,12 @@ const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
 const OUTPUT_DIR = process.env.SEO_ASSETS_OUTPUT_DIR
   ? path.resolve(process.env.SEO_ASSETS_OUTPUT_DIR)
-  : path.resolve(PROJECT_ROOT, "Froentend", "snipcols", "snipcol", "public");
+  : path.resolve(PROJECT_ROOT, "froentend", "snipcols", "snipcol", "public");
 const AUTO_WRITE_ENABLED = process.env.SEO_ASSETS_AUTO_WRITE !== "false";
 
 const staticRoutes = [
   { path: "/", changefreq: "daily", priority: "1.0" },
+  { path: "/amp.html", changefreq: "monthly", priority: "0.6" },
   { path: "/IndustrialAutomation", changefreq: "weekly", priority: "0.9" },
   { path: "/UtilityGrid", changefreq: "weekly", priority: "0.8" },
   { path: "/SmartBuildings", changefreq: "weekly", priority: "0.8" },
@@ -67,14 +69,16 @@ const stripHtml = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
-const toSeoSlug = (value = "") =>
+const toPathSlug = (value = "", fallback = "item") =>
   String(value)
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "faq";
+    .replace(/^-|-$/g, "") || fallback;
+
+const toSeoSlug = (value = "") => toPathSlug(value, "faq");
 
 const toIsoDate = (value) => {
   const date = new Date(value || Date.now());
@@ -89,6 +93,15 @@ const getLatestDateFromItems = (items = [], pickDate, fallback = new Date().toIS
   }
   return latest ? new Date(latest).toISOString() : fallback;
 };
+
+const uniqueEntriesByLoc = (entries = []) =>
+  Array.from(
+    new Map(
+      entries
+        .filter((entry) => entry?.loc)
+        .map((entry) => [entry.loc, entry])
+    ).values()
+  );
 
 const buildBlogPaginationEntries = (blogs = [], fallbackLastmod = new Date().toISOString()) => {
   const totalPages = Math.ceil(blogs.length / BLOGS_PER_PAGE);
@@ -134,6 +147,8 @@ const buildFaqPaginationEntries = (faqs = [], fallbackLastmod = new Date().toISO
 
 const asFaqSlug = (faq) => faq?.slug || toSeoSlug(faq?.question || "");
 
+const asProductSlug = (product) => toPathSlug(product?.name || product?.subcategory || "", "product");
+
 const buildSitemapXml = (entries = []) => {
   const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
   for (const entry of entries) {
@@ -158,7 +173,7 @@ const buildSitemapIndexXml = (lastmod) =>
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     "  <sitemap>",
-    `    <loc>${xmlEscape(`${SITE_URL}/page-sitemap.xml`)}</loc>`,
+    `    <loc>${xmlEscape(`${SITE_URL}/sitemap.xml`)}</loc>`,
     `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "  <sitemap>",
@@ -170,11 +185,15 @@ const buildSitemapIndexXml = (lastmod) =>
     `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "  <sitemap>",
-    `    <loc>${xmlEscape(`${SITE_URL}/product-sitemap.xml`)}</loc>`,
+    `    <loc>${xmlEscape(`${SITE_URL}/image-sitemap.xml`)}</loc>`,
     `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "  <sitemap>",
-    `    <loc>${xmlEscape(`${SITE_URL}/sitemap.xml`)}</loc>`,
+    `    <loc>${xmlEscape(`${SITE_URL}/page-sitemap.xml`)}</loc>`,
+    `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
+    "  </sitemap>",
+    "  <sitemap>",
+    `    <loc>${xmlEscape(`${SITE_URL}/product-sitemap.xml`)}</loc>`,
     `    <lastmod>${xmlEscape(toIsoDate(lastmod))}</lastmod>`,
     "  </sitemap>",
     "</sitemapindex>",
@@ -226,7 +245,7 @@ const buildFaqTxt = (faqs = []) => {
   return lines.join("\n").trim() + "\n";
 };
 
-const buildLlmsTxt = (blogs = [], faqs = []) => {
+const buildLlmsTxt = (blogs = [], faqs = [], products = []) => {
   const lines = [
     "# SNIPCOL",
     "",
@@ -242,11 +261,14 @@ const buildLlmsTxt = (blogs = [], faqs = []) => {
     "## Latest FAQ URLs",
     ...faqs.slice(0, 200).map((faq) => `- ${SITE_URL}/faqs/${asFaqSlug(faq)}`),
     "",
+    "## Product URLs",
+    ...products.slice(0, 200).map((product) => `- ${SITE_URL}/product/${asProductSlug(product)}`),
+    "",
   ];
   return lines.join("\n");
 };
 
-const buildLlmsFullMarkdown = (blogs = [], faqs = []) => {
+const buildLlmsFullMarkdown = (blogs = [], faqs = [], products = []) => {
   const lines = [
     "# SNIPCOL SEO and AI Index",
     "",
@@ -262,6 +284,9 @@ const buildLlmsFullMarkdown = (blogs = [], faqs = []) => {
     "## Latest FAQ URLs",
     ...faqs.slice(0, 400).map((faq) => `- ${SITE_URL}/faqs/${asFaqSlug(faq)}`),
     "",
+    "## Product URLs",
+    ...products.slice(0, 400).map((product) => `- ${SITE_URL}/product/${asProductSlug(product)}`),
+    "",
     "## SEO Notes",
     "- All URLs use canonical HTTPS paths.",
     "- Sitemap includes static pages, blogs, and FAQ detail pages.",
@@ -276,15 +301,28 @@ const buildRobotsTxt = () =>
   [
     "User-agent: *",
     "Allow: /",
+    "Allow: /amp.html",
     "Disallow: /admin/",
+    "Disallow: /admin",
     "Disallow: /login/",
+    "Disallow: /login",
     "Disallow: /signup/",
+    "Disallow: /signup",
     "Disallow: /admin-login/",
+    "Disallow: /admin-login",
     "Disallow: /reset-password/",
+    "Disallow: /reset-password",
     "Disallow: /verify-email/",
     "Disallow: /user/",
+    "Disallow: /user",
     "Disallow: /dashboard/",
+    "Disallow: /dashboard",
     "Disallow: /api/",
+    "Disallow: /add-blog",
+    "Disallow: /add-blog-metadata",
+    "Disallow: /keywords",
+    "Disallow: /page",
+    "Disallow: /testsss",
     "",
     `Sitemap: ${SITE_URL}/sitemap-index.xml`,
     `Sitemap: ${SITE_URL}/sitemap.xml`,
@@ -292,6 +330,7 @@ const buildRobotsTxt = () =>
     `Sitemap: ${SITE_URL}/faq-sitemap.xml`,
     `Sitemap: ${SITE_URL}/product-sitemap.xml`,
     `Sitemap: ${SITE_URL}/page-sitemap.xml`,
+    `Sitemap: ${SITE_URL}/image-sitemap.xml`,
     "",
   ].join("\n");
 
@@ -299,11 +338,14 @@ const buildPlainUrlList = (pageEntries, blogEntries, faqEntries) =>
   [...pageEntries, ...blogEntries, ...faqEntries].map((entry) => entry.loc).join("\n") + "\n";
 
 const buildBlogLinksTxt = (blogs, paginationEntries = []) =>
-  [...paginationEntries.map((entry) => entry.loc), ...blogs.map((blog) => `${SITE_URL}/blog/${blog.slug}`)].join("\n") + "\n";
+  [
+    ...paginationEntries.map((entry) => entry.loc),
+    ...blogs.map((blog) => `${SITE_URL}/blog/${blog.slug}`),
+  ].join("\n") + "\n";
 const buildFaqLinksTxt = (faqs, paginationEntries = []) =>
   [...paginationEntries.map((entry) => entry.loc), ...faqs.map((faq) => `${SITE_URL}/faqs/${asFaqSlug(faq)}`)].join("\n") + "\n";
 
-const buildEntriesStructureJson = (pageEntries, blogs, faqs, generatedAt) =>
+const buildEntriesStructureJson = (pageEntries, blogs, faqs, products, generatedAt) =>
   JSON.stringify(
     {
       site: SITE_URL,
@@ -312,7 +354,8 @@ const buildEntriesStructureJson = (pageEntries, blogs, faqs, generatedAt) =>
         pages: pageEntries.length,
         blogs: blogs.length,
         faqs: faqs.length,
-        total: pageEntries.length + blogs.length + faqs.length,
+        products: products.length,
+        total: pageEntries.length + blogs.length + faqs.length + products.length,
       },
       entries: {
         pages: pageEntries.map((entry) => ({
@@ -336,13 +379,20 @@ const buildEntriesStructureJson = (pageEntries, blogs, faqs, generatedAt) =>
           question: stripHtml(faq.question || ""),
           updatedAt: toIsoDate(faq.updatedAt || faq.createdAt),
         })),
+        products: products.map((product) => ({
+          type: "product",
+          slug: asProductSlug(product),
+          name: stripHtml(product.name || ""),
+          url: `${SITE_URL}/product/${asProductSlug(product)}`,
+          updatedAt: toIsoDate(product.updatedAt || product.createdAt),
+        })),
       },
     },
     null,
     2
   ) + "\n";
 
-const buildSeoContentMarkdown = (blogs, faqs, generatedAt) => {
+const buildSeoContentMarkdown = (blogs, faqs, products, generatedAt) => {
   const lines = [
     "# SNIPCOL SEO Content Hub",
     "",
@@ -362,6 +412,9 @@ const buildSeoContentMarkdown = (blogs, faqs, generatedAt) => {
     "## Latest FAQ Highlights",
     ...faqs.slice(0, 200).map((faq) => `- ${stripHtml(faq.question || "")} (${SITE_URL}/faqs/${asFaqSlug(faq)})`),
     "",
+    "## Product URLs",
+    ...products.slice(0, 200).map((product) => `- ${stripHtml(product.name || "Product")} (${SITE_URL}/product/${asProductSlug(product)})`),
+    "",
     "## Technical SEO Notes",
     "- Canonical URLs are HTTPS.",
     "- XML sitemaps are generated automatically from live data.",
@@ -377,14 +430,18 @@ const writeFileSafely = async (name, content) => {
 };
 
 const fetchSeoData = async () => {
-  const [blogs, faqs] = await Promise.all([
+  const [blogs, faqs, products] = await Promise.all([
     Blog.find(publishedBlogFilter)
       .select("slug title excerpt metaDescription featuredImage updatedAt publishedAt createdAt")
       .sort({ updatedAt: -1, createdAt: -1 })
       .lean(),
     FAQ.find(publishedFaqFilter).select("slug question answer updatedAt createdAt").sort({ updatedAt: -1, createdAt: -1 }).lean(),
+    Service.find({ is_active: true })
+      .select("name subcategory updatedAt createdAt")
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean(),
   ]);
-  return { blogs, faqs };
+  return { blogs, faqs, products };
 };
 
 export const regenerateSeoAssetsNow = async (reason = "manual", logger = console) => {
@@ -394,7 +451,7 @@ export const regenerateSeoAssetsNow = async (reason = "manual", logger = console
   }
 
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
-  const { blogs, faqs } = await fetchSeoData();
+  const { blogs, faqs, products } = await fetchSeoData();
   const now = new Date().toISOString();
 
   const staticPageEntries = staticRoutes.map((route) => ({
@@ -417,27 +474,36 @@ export const regenerateSeoAssetsNow = async (reason = "manual", logger = console
     changefreq: "monthly",
     priority: "0.7",
   }));
-
-  const blogPaginationEntries = buildBlogPaginationEntries(blogs, now);
-  const faqPaginationEntries = buildFaqPaginationEntries(faqs, now);
-  const pageEntries = [...staticPageEntries, ...blogPaginationEntries, ...faqPaginationEntries];
-  const completeEntries = [...pageEntries, ...blogEntries, ...faqEntries];
+  const blogPaginationEntries = uniqueEntriesByLoc(buildBlogPaginationEntries(blogs, now));
+  const faqPaginationEntries = uniqueEntriesByLoc(buildFaqPaginationEntries(faqs, now));
+  const pageEntries = uniqueEntriesByLoc([...staticPageEntries, ...blogPaginationEntries, ...faqPaginationEntries]);
+  const uniqueBlogEntries = uniqueEntriesByLoc(blogEntries);
+  const uniqueFaqEntries = uniqueEntriesByLoc(faqEntries);
+  const productEntries = uniqueEntriesByLoc(
+    products.map((product) => ({
+      loc: `${SITE_URL}/product/${asProductSlug(product)}`,
+      lastmod: product.updatedAt || product.createdAt || now,
+      changefreq: "weekly",
+      priority: "0.7",
+    }))
+  );
+  const completeEntries = uniqueEntriesByLoc([...pageEntries, ...uniqueBlogEntries, ...uniqueFaqEntries, ...productEntries]);
 
   await Promise.all([
     writeFileSafely("sitemap.xml", buildSitemapXml(completeEntries)),
     writeFileSafely("sitemap-index.xml", buildSitemapIndexXml(now)),
     writeFileSafely("page-sitemap.xml", buildSitemapXml(pageEntries)),
-    writeFileSafely("blog-sitemap.xml", buildSitemapXml([...blogPaginationEntries, ...blogEntries])),
-    writeFileSafely("faq-sitemap.xml", buildSitemapXml([...faqPaginationEntries, ...faqEntries])),
+    writeFileSafely("blog-sitemap.xml", buildSitemapXml(uniqueEntriesByLoc([...blogPaginationEntries, ...uniqueBlogEntries]))),
+    writeFileSafely("faq-sitemap.xml", buildSitemapXml(uniqueEntriesByLoc([...faqPaginationEntries, ...uniqueFaqEntries]))),
     writeFileSafely("image-sitemap.xml", buildImageSitemapXml(blogs)),
-    writeFileSafely("product-sitemap.xml", buildEmptySitemapXml()),
+    writeFileSafely("product-sitemap.xml", buildSitemapXml(productEntries)),
     writeFileSafely("robots.txt", buildRobotsTxt()),
     writeFileSafely("faq.txt", buildFaqTxt(faqs)),
-    writeFileSafely("llms.txt", buildLlmsTxt(blogs, faqs)),
-    writeFileSafely("llms-full.md", buildLlmsFullMarkdown(blogs, faqs)),
-    writeFileSafely("seo-content.md", buildSeoContentMarkdown(blogs, faqs, now)),
-    writeFileSafely("entries-structure.json", buildEntriesStructureJson(pageEntries, blogs, faqs, now)),
-    writeFileSafely("all-urls.txt", buildPlainUrlList(pageEntries, blogEntries, faqEntries)),
+    writeFileSafely("llms.txt", buildLlmsTxt(blogs, faqs, products)),
+    writeFileSafely("llms-full.md", buildLlmsFullMarkdown(blogs, faqs, products)),
+    writeFileSafely("seo-content.md", buildSeoContentMarkdown(blogs, faqs, products, now)),
+    writeFileSafely("entries-structure.json", buildEntriesStructureJson(pageEntries, blogs, faqs, products, now)),
+    writeFileSafely("all-urls.txt", buildPlainUrlList(pageEntries, [...uniqueBlogEntries, ...productEntries], uniqueFaqEntries)),
     writeFileSafely("blog-links.txt", buildBlogLinksTxt(blogs, blogPaginationEntries)),
     writeFileSafely("faq-links.txt", buildFaqLinksTxt(faqs, faqPaginationEntries)),
   ]);
