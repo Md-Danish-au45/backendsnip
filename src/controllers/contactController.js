@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import axios from "axios";
 import FormData from "form-data";
 import asyncHandler from "../middleware/asyncHandler.js";
+import ContactFormSubmission from "../models/ContactFormSubmissionModel.js";
 
 const EMAIL_RECIPIENTS = ["mdshoaib018@gmail.com", "danishm856@gmail.com"];
 const DEFAULT_WHATSAPP_RECIPIENTS = ["+919654570253", "+917982981354"];
@@ -11,9 +12,21 @@ const WHATSBOOST_AUTHKEY = process.env.WHATSBOOST_AUTHKEY || "85llFpgGSQURNYg6Vq
 const MAX_WHATSAPP_MESSAGE_LENGTH = 1200;
 const WHATSAPP_SEND_RETRIES = Math.max(1, Number(process.env.WHATSAPP_SEND_RETRIES || 3));
 const LEAD_MARKER_TEXT = "ye lead aayi h aur lead snipcol ka hai";
+const FORM_KEY_TO_TYPE = {
+  contactus: "contact_us",
+  "contact-us": "contact_us",
+  "blogs-contact": "blog_contact",
+  "blog-contact": "blog_contact",
+  "faqs-contact": "faq_contact",
+  "faq-contact": "faq_contact",
+};
 
 const clean = (value = "") => String(value).trim();
 const toDigits = (value = "") => String(value).replace(/\D/g, "");
+const isValidEmail = (value = "") => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+const getClientIp = (req) =>
+  req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
+const resolveFormType = (formKey = "") => FORM_KEY_TO_TYPE[clean(formKey).toLowerCase()] || null;
 const normalizeIndianPhone = (value = "") => {
   const digits = toDigits(value);
   if (!digits) return "";
@@ -112,6 +125,122 @@ const sendWhatsappWithFallback = async ({ to, message }) => {
   throw new Error(`WhatsApp delivery failed for ${to}. Attempts: ${errors.join(" | ")}`);
 };
 
+const buildSubmissionPayload = ({ body = {}, formType, clientIp }) => {
+  const name = clean(body?.name);
+  const email = clean(body?.email).toLowerCase();
+  const message = clean(body?.message);
+  const subject = clean(body?.subject);
+  const company = clean(body?.company);
+  const source = clean(body?.source || "website");
+  const pageUrl = clean(body?.pageUrl || "");
+  const blogSlug = clean(body?.blogSlug || body?.blogId || "");
+  const faqSlug = clean(body?.faqSlug || body?.faqId || "");
+  const phone = normalizeIndianPhone(body?.phone || "");
+
+  if (!name || !email || !message) {
+    return {
+      valid: false,
+      error: "Please provide name, email, and message.",
+    };
+  }
+
+  if (!isValidEmail(email)) {
+    return {
+      valid: false,
+      error: "Please provide a valid email address.",
+    };
+  }
+
+  return {
+    valid: true,
+    payload: {
+      formType,
+      name,
+      email,
+      phone,
+      company,
+      subject,
+      message,
+      source,
+      pageUrl,
+      blogSlug,
+      faqSlug,
+      ipAddress: clientIp,
+    },
+  };
+};
+
+export const createContactFormSubmission = asyncHandler(async (req, res) => {
+  const routeKey = req.params?.formKey || req.path?.split("/").filter(Boolean).pop();
+  const formType = resolveFormType(routeKey);
+  if (!formType) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid form type.",
+    });
+  }
+
+  const clientIp = getClientIp(req);
+  const submission = buildSubmissionPayload({
+    body: req.body,
+    formType,
+    clientIp,
+  });
+
+  if (!submission.valid) {
+    return res.status(400).json({
+      success: false,
+      message: submission.error,
+    });
+  }
+
+  const created = await ContactFormSubmission.create(submission.payload);
+
+  res.status(201).json({
+    success: true,
+    message: "Form submitted successfully.",
+    data: created,
+  });
+});
+
+export const getContactFormSubmissions = asyncHandler(async (req, res) => {
+  const routeKey = req.params?.formKey || req.path?.split("/").filter(Boolean).pop();
+  const formType = resolveFormType(routeKey);
+  if (!formType) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid form type.",
+    });
+  }
+
+  const page = Math.max(1, Number.parseInt(req.query?.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(req.query?.limit, 10) || 20));
+  const skip = (page - 1) * limit;
+
+  const filter = { formType };
+  const emailFilter = clean(req.query?.email || "").toLowerCase();
+  if (emailFilter) {
+    filter.email = emailFilter;
+  }
+
+  const [total, items] = await Promise.all([
+    ContactFormSubmission.countDocuments(filter),
+    ContactFormSubmission.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    formType,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
+    data: items,
+  });
+});
+
 export const sendContactMessage = asyncHandler(async (req, res) => {
   const name = clean(req.body?.name);
   const email = clean(req.body?.email);
@@ -120,10 +249,7 @@ export const sendContactMessage = asyncHandler(async (req, res) => {
   const subject = clean(req.body?.subject);
   const message = clean(req.body?.message);
   const source = clean(req.body?.source || "website");
-  const clientIp =
-    req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
-    req.socket?.remoteAddress ||
-    "unknown";
+  const clientIp = getClientIp(req);
 
   // Validation
   if (!name || !email || !subject || !message) {
@@ -132,6 +258,21 @@ export const sendContactMessage = asyncHandler(async (req, res) => {
       message: "Please provide name, email, subject, and message.",
     });
   }
+
+  await ContactFormSubmission.create({
+    formType: "contact_us",
+    name,
+    email: email.toLowerCase(),
+    phone,
+    company,
+    subject,
+    message,
+    source,
+    pageUrl: clean(req.body?.pageUrl || ""),
+    blogSlug: clean(req.body?.blogSlug || req.body?.blogId || ""),
+    faqSlug: clean(req.body?.faqSlug || req.body?.faqId || ""),
+    ipAddress: clientIp,
+  });
 
   const canSendEmail = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
   let emailPromise = Promise.resolve("Email skipped (SMTP not configured)");
